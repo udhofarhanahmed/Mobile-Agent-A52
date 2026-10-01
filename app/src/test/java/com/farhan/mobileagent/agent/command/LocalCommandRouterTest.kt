@@ -38,6 +38,14 @@ class LocalCommandRouterTest {
         assertTrue(item.dueAt!! >= before + 9L * 60L * 1000L)
     }
 
+    @Test fun appAliasBecomesOpenAppAction() {
+        val result = router.route("open chrome")
+        assertTrue(result is CommandResult.Action)
+        val request = (result as CommandResult.Action).request
+        assertEquals(ActionType.OPEN_APP, request.type)
+        assertEquals("com.android.chrome", request.packageName)
+    }
+
     @Test fun batteryUsesLocalDeviceState() {
         val result = router.route("battery", DeviceState(42, false, true))
         assertTrue(result is CommandResult.Answer)
