@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Mobile Agent A52</string>
+    <string name="accessibility_description">Local screen observation and controlled interaction under explicit safety policies.</string>
+</resources>
