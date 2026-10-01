@@ -4,11 +4,14 @@ import com.farhan.mobileagent.agent.device.DeviceState
 import com.farhan.mobileagent.agent.model.ActionRequest
 import com.farhan.mobileagent.agent.model.ActionType
 import com.farhan.mobileagent.agent.model.TargetSpec
+import com.farhan.mobileagent.agent.task.AgentTask
+import com.farhan.mobileagent.agent.task.TaskStep
 
 sealed interface CommandResult {
     data class Answer(val text: String) : CommandResult
     data class Action(val request: ActionRequest) : CommandResult
     data class AddAttention(val title: String, val priority: Int = 60, val dueAt: Long? = null) : CommandResult
+    data class BackgroundTask(val task: AgentTask) : CommandResult
     data class Unknown(val text: String) : CommandResult
 }
 
@@ -16,7 +19,22 @@ class LocalCommandRouter {
     fun route(input: String, device: DeviceState? = null): CommandResult {
         val q = input.trim().lowercase()
         val reminder = Regex("^remind me to (.+) in (\\d+) (minute|minutes|hour|hours)$").find(q)
+        val background = q.removePrefix("background ").trim()
         val appPackage = appPackageFor(q.removePrefix("open app ").removePrefix("open ").trim())
+
+        if (q.startsWith("background ")) {
+            val inner = route(background, device)
+            if (inner is CommandResult.Action) {
+                return CommandResult.BackgroundTask(
+                    AgentTask(
+                        title = background,
+                        steps = listOf(TaskStep(action = inner.request)),
+                        approvedForBackground = false
+                    )
+                )
+            }
+            return CommandResult.Unknown("I can background supported device actions, but I need a concrete action.")
+        }
 
         return when {
             reminder != null -> {
@@ -31,21 +49,17 @@ class LocalCommandRouter {
                 )
             }
             q.startsWith("open app ") && q.removePrefix("open app ").trim().contains(".") ->
-                CommandResult.Action(
-                    ActionRequest(
-                        type = ActionType.OPEN_APP,
-                        packageName = q.removePrefix("open app ").trim(),
-                        reason = "User requested a specific app package"
-                    )
-                )
+                CommandResult.Action(ActionRequest(
+                    type = ActionType.OPEN_APP,
+                    packageName = q.removePrefix("open app ").trim(),
+                    reason = "User requested a specific app package"
+                ))
             q.startsWith("open ") && appPackage != null ->
-                CommandResult.Action(
-                    ActionRequest(
-                        type = ActionType.OPEN_APP,
-                        packageName = appPackage,
-                        reason = "User requested an app"
-                    )
-                )
+                CommandResult.Action(ActionRequest(
+                    type = ActionType.OPEN_APP,
+                    packageName = appPackage,
+                    reason = "User requested an app"
+                ))
             q == "go home" || q == "home" ->
                 CommandResult.Action(ActionRequest(ActionType.HOME, reason = "User requested Home"))
             q == "go back" || q == "back" ->
@@ -61,13 +75,11 @@ class LocalCommandRouter {
             q == "mute" || q == "mute phone" ->
                 CommandResult.Action(ActionRequest(ActionType.MUTE, reason = "User requested mute"))
             q.startsWith("tap ") ->
-                CommandResult.Action(
-                    ActionRequest(
-                        type = ActionType.TAP,
-                        target = TargetSpec(text = input.substringAfter("tap ").trim()),
-                        reason = "User requested a visible target"
-                    )
-                )
+                CommandResult.Action(ActionRequest(
+                    type = ActionType.TAP,
+                    target = TargetSpec(text = input.substringAfter("tap ").trim()),
+                    reason = "User requested a visible target"
+                ))
             q.startsWith("remember ") ->
                 CommandResult.AddAttention(input.substringAfter("remember ").trim(), 60)
             q.contains("battery") && device != null ->
@@ -77,7 +89,7 @@ class LocalCommandRouter {
                 )
             q == "what are you doing" || q == "status" ->
                 CommandResult.Answer(
-                    "I am local-first. I can manage attention, inspect supported screens, and prepare policy-gated device actions."
+                    "I am local-first. I can manage attention, inspect supported screens, and run authorized low-risk background tasks."
                 )
             else ->
                 CommandResult.Unknown("I do not have a safe built-in command for that yet.")
