@@ -9,7 +9,7 @@ object NodeFinder {
 
         target.text?.let { text ->
             root.findAccessibilityNodeInfosByText(text).firstOrNull()?.let { node ->
-                return clickableSelfOrAncestor(node) ?: node
+                return node
             }
         }
         target.resourceId?.let { resourceId ->
@@ -20,7 +20,7 @@ object NodeFinder {
         target.contentDescription?.let { desc ->
             return depthFirst(root)
                 .firstOrNull { it.contentDescription?.toString() == desc }
-                ?.let { clickableSelfOrAncestor(it) ?: it }
+                ?.let { it }
         }
         return null
     }
