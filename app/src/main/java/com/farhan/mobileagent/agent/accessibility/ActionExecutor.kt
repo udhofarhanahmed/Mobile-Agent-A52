@@ -2,8 +2,11 @@ package com.farhan.mobileagent.agent.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.Intent
 import android.graphics.Path
+import android.media.AudioManager
 import android.os.SystemClock
+import android.provider.Settings
 import android.view.accessibility.AccessibilityNodeInfo
 import com.farhan.mobileagent.agent.audit.AuditLog
 import com.farhan.mobileagent.agent.model.*
@@ -27,15 +30,23 @@ class ActionExecutor(
             audit.record(request, Decision.DENY.name, guard.classifyLoop(request), false)
             return ActionResult(false, "Action rate-limited", Decision.DENY, elapsed(start))
         }
-        val ok = when (request.type) {
-            ActionType.OBSERVE -> true
-            ActionType.BACK -> service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
-            ActionType.HOME -> service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
-            ActionType.RECENTS -> service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
-            ActionType.TAP -> tap(request.target)
-            ActionType.TYPE_TEXT -> typeText(request.target, request.text.orEmpty())
-            ActionType.SWIPE -> swipe(request.gesture)
-        }
+
+        val ok = runCatching {
+            when (request.type) {
+                ActionType.OBSERVE -> true
+                ActionType.BACK -> service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+                ActionType.HOME -> service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+                ActionType.RECENTS -> service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
+                ActionType.TAP -> tap(request.target)
+                ActionType.TYPE_TEXT -> typeText(request.target, request.text.orEmpty())
+                ActionType.SWIPE -> swipe(request.gesture)
+                ActionType.OPEN_SETTINGS -> openSettings()
+                ActionType.VOLUME_UP -> adjustVolume(AudioManager.ADJUST_RAISE)
+                ActionType.VOLUME_DOWN -> adjustVolume(AudioManager.ADJUST_LOWER)
+                ActionType.MUTE -> adjustVolume(AudioManager.ADJUST_MUTE)
+            }
+        }.getOrDefault(false)
+
         val message = if (ok) "Action completed" else "Action failed"
         audit.record(request, decision.name, message, ok)
         return ActionResult(ok, message, decision, elapsed(start))
@@ -68,6 +79,21 @@ class ActionExecutor(
             .addStroke(GestureDescription.StrokeDescription(path, 0, spec.durationMs))
             .build()
         return service.dispatchGesture(gesture, null, null)
+    }
+
+    private fun openSettings(): Boolean {
+        return runCatching {
+            service.startActivity(
+                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun adjustVolume(direction: Int): Boolean {
+        val audio = service.getSystemService(AudioManager::class.java) ?: return false
+        audio.adjustVolume(direction, AudioManager.FLAG_SHOW_UI)
+        return true
     }
 
     private fun elapsed(start: Long) = SystemClock.elapsedRealtime() - start
