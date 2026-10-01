@@ -56,7 +56,17 @@ class ActionExecutor(
     private fun tap(target: TargetSpec?): Boolean {
         if (target == null) return false
         val node = NodeFinder.find(service.rootInActiveWindow, target) ?: return false
-        return node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        val clickable = if (node.isClickable) node else findClickableAncestor(node)
+        return clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+    }
+
+    private fun findClickableAncestor(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var current: AccessibilityNodeInfo? = node.parent
+        repeat(8) {
+            if (current?.isClickable == true) return current
+            current = current?.parent
+        }
+        return null
     }
 
     private fun typeText(target: TargetSpec?, text: String): Boolean {
