@@ -2,6 +2,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
@@ -30,6 +31,10 @@
             android:name=".VoiceActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".MusicActivity"
+            android:exported="false" />
+
         <service
             android:name=".agent.accessibility.AgentAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -54,6 +59,11 @@
                 android:name="android.service.notification.default_filter_types"
                 android:value="conversations|alerting" />
         </service>
+
+        <service
+            android:name=".agent.media.PlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <service
             android:name=".agent.task.BackgroundAgentService"
