@@ -23,14 +23,12 @@ class SecurityKernel {
 
     fun evaluate(request: ActionRequest): Decision {
         if (stopped) return Decision.DENY
-        return when (request.type) {
-            ActionType.OBSERVE -> Decision.ALLOW
-            else -> if (request.requiresConfirmation && !request.confirmed) {
-                Decision.REQUIRE_CONFIRMATION
-            } else {
-                Decision.ALLOW
-            }
-        }
+
+        // The kernel is the authority. Callers cannot disable confirmation
+        // simply by setting requiresConfirmation=false. Only observation is
+        // intrinsically non-mutating; every device action must arrive confirmed.
+        if (request.type == ActionType.OBSERVE) return Decision.ALLOW
+        return if (request.confirmed) Decision.ALLOW else Decision.REQUIRE_CONFIRMATION
     }
 
     fun emergencyStop() {
