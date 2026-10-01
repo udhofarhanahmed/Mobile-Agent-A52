@@ -29,6 +29,7 @@ class ConfirmationManager {
             ActionType.BACK,
             ActionType.HOME,
             ActionType.RECENTS,
+            ActionType.OPEN_APP,
             ActionType.OPEN_SETTINGS,
             ActionType.VOLUME_UP,
             ActionType.VOLUME_DOWN,
