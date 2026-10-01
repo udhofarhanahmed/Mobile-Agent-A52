@@ -3,6 +3,7 @@ package com.farhan.mobileagent.agent.command
 import com.farhan.mobileagent.agent.device.DeviceState
 import com.farhan.mobileagent.agent.model.ActionType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -25,6 +26,16 @@ class LocalCommandRouterTest {
         val result = router.route("remember buy milk")
         assertTrue(result is CommandResult.AddAttention)
         assertEquals("buy milk", (result as CommandResult.AddAttention).title)
+    }
+
+    @Test fun timedReminderGetsDueTime() {
+        val before = System.currentTimeMillis()
+        val result = router.route("remind me to call Ali in 10 minutes")
+        assertTrue(result is CommandResult.AddAttention)
+        val item = result as CommandResult.AddAttention
+        assertEquals("call ali", item.title)
+        assertNotNull(item.dueAt)
+        assertTrue(item.dueAt!! >= before + 9L * 60L * 1000L)
     }
 
     @Test fun batteryUsesLocalDeviceState() {
