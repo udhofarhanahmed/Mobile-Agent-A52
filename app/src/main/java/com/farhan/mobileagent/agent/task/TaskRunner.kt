@@ -56,12 +56,10 @@ class TaskRunner(
 
         if (service == null) {
             if (task != null && task.state != TaskState.PAUSED) {
-                store.upsert(
-                    task.copy(
-                        state = TaskState.PAUSED,
-                        lastError = "Accessibility service unavailable"
-                    )
-                )
+                store.upsert(task.copy(
+                    state = TaskState.PAUSED,
+                    lastError = "Accessibility service unavailable"
+                ))
             }
             return "PAUSED"
         }
@@ -96,6 +94,14 @@ class TaskRunner(
         }
 
         val nextActionCount = runnableTask.actionsExecuted + 1
+        if (nextActionCount > runnableTask.maxActions) {
+            store.upsert(runnableTask.copy(
+                state = TaskState.FAILED,
+                lastError = "Maximum action budget exceeded"
+            ))
+            return "FAILED"
+        }
+
         val autonomousRequest = step.action.copy(requiresConfirmation = false, confirmed = true)
         val result = service.executeApproved(autonomousRequest)
         if (!result.success) {
@@ -165,19 +171,33 @@ class TaskRunner(
         stepId: String,
         result: ActionResult
     ): Boolean {
+        if (kernel.isStopped() || !kernel.isBackgroundAutonomyEnabled()) return false
+
         val task = store.get(taskId) ?: return false
-        if (task.state != TaskState.WAITING_FOR_USER) return false
+        if (!task.approvedForBackground || task.state != TaskState.WAITING_FOR_USER) return false
         val step = task.steps.getOrNull(task.currentStep) ?: return false
         if (step.id != stepId) return false
+
+        TaskBudgetPolicy.exceeded(task)?.let { reason ->
+            store.upsert(task.copy(state = TaskState.FAILED, lastError = reason))
+            return true
+        }
+        if (task.deadlineAt != null && System.currentTimeMillis() > task.deadlineAt) {
+            store.upsert(task.copy(state = TaskState.FAILED, lastError = "Deadline exceeded"))
+            return true
+        }
 
         val actionCount = task.actionsExecuted + 1
         if (actionCount > task.maxActions) {
             store.upsert(task.copy(
                 state = TaskState.FAILED,
-                actionsExecuted = actionCount,
                 lastError = "Maximum action budget exceeded"
             ))
             return true
+        }
+
+        if (result.success && !verifyStep(step)) {
+            return handleFailure(task, actionCount, "Post-action verification failed") != "RETRYING"
         }
 
         if (result.success) {
