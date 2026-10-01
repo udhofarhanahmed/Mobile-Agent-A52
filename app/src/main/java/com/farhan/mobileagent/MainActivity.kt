@@ -554,6 +554,15 @@ class MainActivity : ComponentActivity() {
                                     auditVersion++
                                 }
 
+                                is CommandResult.OpenCall -> {
+                                    startActivity(
+                                        Intent(this@MainActivity, CallActivity::class.java)
+                                            .putExtra(CallActivity.EXTRA_TARGET, result.target)
+                                    )
+                                    messages = messages + "Agent: Preparing a call for " + result.target + "."
+                                    auditVersion++
+                                }
+
                                 is CommandResult.AddNote -> {
                                     val note = noteStore.add(result.content)
                                     messages = messages + "You: " + command +
