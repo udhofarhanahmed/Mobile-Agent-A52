@@ -35,6 +35,10 @@
             android:name=".MusicActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".CallActivity"
+            android:exported="false" />
+
         <service
             android:name=".agent.accessibility.AgentAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
