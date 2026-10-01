@@ -8,6 +8,7 @@ import com.farhan.mobileagent.agent.storage.LocalMemory
 
 class SecurityKernel {
     @Volatile private var stopped = false
+    @Volatile private var backgroundAutonomyEnabled = true
     @Volatile private var memory: LocalMemory? = null
 
     fun initialize(context: Context) {
@@ -16,6 +17,7 @@ class SecurityKernel {
             val m = LocalMemory(context.applicationContext)
             memory = m
             stopped = m.get(KEY_EMERGENCY_STOP) == "true"
+            backgroundAutonomyEnabled = m.get(KEY_BACKGROUND_AUTONOMY) != "false"
         }
     }
 
@@ -43,7 +45,15 @@ class SecurityKernel {
 
     fun isStopped(): Boolean = stopped
 
+    fun isBackgroundAutonomyEnabled(): Boolean = backgroundAutonomyEnabled
+
+    fun setBackgroundAutonomyEnabled(enabled: Boolean) {
+        backgroundAutonomyEnabled = enabled
+        memory?.put(KEY_BACKGROUND_AUTONOMY, enabled.toString())
+    }
+
     private companion object {
         const val KEY_EMERGENCY_STOP = "security_emergency_stop"
+        const val KEY_BACKGROUND_AUTONOMY = "security_background_autonomy"
     }
 }
