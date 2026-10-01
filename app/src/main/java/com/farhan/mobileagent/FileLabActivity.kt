@@ -48,17 +48,20 @@ class FileLabActivity : ComponentActivity() {
                     }
 
                     Button(
-                        Modifier.fillMaxWidth(),
                         onClick = {
                             picker.launch(arrayOf("text/csv", "text/tab-separated-values", "text/plain", "application/json"))
-                        }
+                        },
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Choose local file")
                     }
 
                     analysis?.let { report -> AnalysisCard(report) }
 
-                    OutlinedButton(Modifier.fillMaxWidth(), onClick = { finish() }) {
+                    OutlinedButton(
+                        onClick = { finish() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text("Back to agent")
                     }
                 }
