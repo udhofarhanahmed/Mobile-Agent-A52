@@ -26,6 +26,9 @@ import com.farhan.mobileagent.agent.command.CommandResult
 import com.farhan.mobileagent.agent.command.LocalCommandRouter
 import com.farhan.mobileagent.agent.core.AgentContainer
 import com.farhan.mobileagent.agent.core.AgentRuntime
+import com.farhan.mobileagent.agent.core.CapabilityCenter
+import com.farhan.mobileagent.agent.core.CapabilityClass
+import com.farhan.mobileagent.agent.core.CapabilityStatus
 import com.farhan.mobileagent.agent.core.PendingAction
 import com.farhan.mobileagent.agent.device.DeviceStateProvider
 import com.farhan.mobileagent.agent.notification.NotificationInbox
@@ -89,6 +92,7 @@ class MainActivity : ComponentActivity() {
             val auditEvents = remember(auditVersion) {
                 AgentContainer.auditLog.snapshot().takeLast(8).asReversed()
             }
+            val capabilities = CapabilityCenter.snapshot(this@MainActivity)
 
             MaterialTheme {
                 Column(
@@ -114,6 +118,41 @@ class MainActivity : ComponentActivity() {
                                 "awareness disabled"
                             }
                     )
+
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(
+                            Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text(
+                                "Capability & Permission Center",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                "The agent's powers are grouped as Observe, Suggest, and Act. No hidden capability is granted by this screen.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            CapabilityClass.entries.forEach { group ->
+                                Text(
+                                    group.name.lowercase().replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                                capabilities.filter { it.group == group }.forEach { capability ->
+                                    val status = when (capability.status) {
+                                        CapabilityStatus.READY -> "READY"
+                                        CapabilityStatus.ENABLED_NOT_CONNECTED -> "ENABLED / DISCONNECTED"
+                                        CapabilityStatus.USER_APPROVAL_REQUIRED -> "USER APPROVAL"
+                                        CapabilityStatus.NEEDS_ACCESS -> "NEEDS ACCESS"
+                                        CapabilityStatus.DISABLED_BY_STOP -> "BLOCKED BY STOP"
+                                    }
+                                    Text(
+                                        "• " + capability.capability + " — " + status,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     Card(Modifier.fillMaxWidth()) {
                         Column(
