@@ -1,6 +1,5 @@
 package com.farhan.mobileagent.agent.core
 
-import com.farhan.mobileagent.agent.accessibility.ActionExecutor
 import com.farhan.mobileagent.agent.audit.AuditLog
 import com.farhan.mobileagent.agent.model.ActionRequest
 import com.farhan.mobileagent.agent.model.ActionResult
@@ -29,10 +28,10 @@ class AgentRuntime(
 
     fun approve(
         id: String,
-        executor: ActionExecutor
+        executor: (ActionRequest) -> ActionResult
     ): ActionResult? {
         val approved = confirmation.approve(id) ?: return null
-        return executor.execute(approved)
+        return executor(approved)
     }
 
     fun reject(id: String): ActionRequest? {
