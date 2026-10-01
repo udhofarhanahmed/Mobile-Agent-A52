@@ -19,6 +19,7 @@ enum class CapabilityStatus {
     ENABLED_NOT_CONNECTED,
     USER_APPROVAL_REQUIRED,
     NEEDS_ACCESS,
+    DISABLED_BY_USER,
     DISABLED_BY_STOP
 }
 
@@ -41,71 +42,63 @@ object CapabilityCenter {
         val notificationConnected = NotificationListenerState.connected
         val autonomyEnabled = AgentContainer.securityKernel.isBackgroundAutonomyEnabled()
 
-        val blocked = { detail: String ->
-            CapabilityStatus.DISABLED_BY_STOP to detail
-        }
-
         return listOf(
             CapabilityDescriptor(
                 capability = "Screen observation",
                 group = CapabilityClass.OBSERVE,
                 status = when {
-                    stopped -> blocked("Emergency STOP is active.") .first
+                    stopped -> CapabilityStatus.DISABLED_BY_STOP
                     accessibilityConnected -> CapabilityStatus.READY
                     accessibilityEnabled -> CapabilityStatus.ENABLED_NOT_CONNECTED
                     else -> CapabilityStatus.NEEDS_ACCESS
                 },
                 detail = when {
-                    stopped -> blocked("Emergency STOP is active.").second
+                    stopped -> "Emergency STOP is active."
                     accessibilityConnected -> "Accessibility is enabled and connected."
-                    accessibilityEnabled -> "Accessibility is enabled; service is not currently connected."
-                    else -> "Requires the user to enable the Accessibility Service."
+                    accessibilityEnabled -> "Accessibility is enabled; the service is not currently connected."
+                    else -> "Requires user-enabled Accessibility access."
                 }
             ),
             CapabilityDescriptor(
-                capability = "Notification metadata awareness",
+                capability = "Notification metadata",
                 group = CapabilityClass.OBSERVE,
                 status = when {
-                    stopped -> blocked("Emergency STOP is active.").first
+                    stopped -> CapabilityStatus.DISABLED_BY_STOP
                     notificationConnected -> CapabilityStatus.READY
                     notificationEnabled -> CapabilityStatus.ENABLED_NOT_CONNECTED
                     else -> CapabilityStatus.NEEDS_ACCESS
                 },
                 detail = when {
-                    stopped -> blocked("Emergency STOP is active.").second
-                    notificationConnected -> "Observes notification metadata only; message bodies are not stored."
-                    notificationEnabled -> "Notification access is enabled; listener is not currently connected."
-                    else -> "Requires the user to enable Notification access."
+                    stopped -> "Emergency STOP is active."
+                    notificationConnected -> "Metadata only; notification message bodies are not stored."
+                    notificationEnabled -> "Access is enabled; listener is reconnecting."
+                    else -> "Requires user-enabled Notification access."
                 }
             ),
             CapabilityDescriptor(
-                capability = "Local answers and planning",
+                capability = "Local answers & planning",
                 group = CapabilityClass.SUGGEST,
                 status = CapabilityStatus.READY,
-                detail = "Runs locally; it cannot authorize a device action."
+                detail = "Local reasoning can propose; the security kernel decides."
             ),
             CapabilityDescriptor(
-                capability = "Attention and reminders",
+                capability = "Attention & reminders",
                 group = CapabilityClass.ACT,
                 status = if (stopped) CapabilityStatus.DISABLED_BY_STOP else CapabilityStatus.READY,
                 detail = if (stopped) {
-                    "Emergency STOP blocks agent-managed actions."
+                    "Agent-managed actions are blocked."
                 } else {
-                    "Local attention items and reminders are available."
+                    "Local tasks, reminders, and attention items are available."
                 }
             ),
             CapabilityDescriptor(
-                capability = "Device navigation and controls",
+                capability = "Device controls",
                 group = CapabilityClass.ACT,
-                status = if (stopped) {
-                    CapabilityStatus.DISABLED_BY_STOP
-                } else {
-                    CapabilityStatus.USER_APPROVAL_REQUIRED
-                },
+                status = if (stopped) CapabilityStatus.DISABLED_BY_STOP else CapabilityStatus.USER_APPROVAL_REQUIRED,
                 detail = if (stopped) {
                     "Emergency STOP blocks device actions."
                 } else {
-                    "Back, Home, Recents, app/settings opening, and volume controls require explicit approval unless an already-authorized safe background task is running."
+                    "Navigation, supported app/settings launch, and volume controls are policy-gated."
                 }
             ),
             CapabilityDescriptor(
@@ -118,8 +111,8 @@ object CapabilityCenter {
                 },
                 detail = when {
                     stopped -> "Emergency STOP blocks UI actions."
-                    !accessibilityEnabled -> "Tap, swipe, and text entry require the user to enable Accessibility."
-                    else -> "Tap, swipe, and text entry require explicit approval and are not allowed unattended."
+                    !accessibilityEnabled -> "Tap, swipe, and text entry require Accessibility access."
+                    else -> "Tap, swipe, and text entry require explicit approval and stay out of unattended execution."
                 }
             ),
             CapabilityDescriptor(
@@ -128,11 +121,11 @@ object CapabilityCenter {
                 status = when {
                     stopped -> CapabilityStatus.DISABLED_BY_STOP
                     autonomyEnabled -> CapabilityStatus.READY
-                    else -> CapabilityStatus.NEEDS_ACCESS
+                    else -> CapabilityStatus.DISABLED_BY_USER
                 },
                 detail = when {
-                    stopped -> "Emergency STOP blocks background execution."
-                    autonomyEnabled -> "Enabled. Only explicitly authorized tasks can run, within time and action budgets."
+                    stopped -> "Emergency STOP has priority over autonomy."
+                    autonomyEnabled -> "Enabled. Only explicitly authorized tasks run within time and action budgets."
                     else -> "Disabled by the user."
                 }
             )
