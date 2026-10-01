@@ -62,6 +62,11 @@ class ActionExecutor(
     private fun typeText(target: TargetSpec?, text: String): Boolean {
         if (target == null || text.isEmpty()) return false
         val node = NodeFinder.find(service.rootInActiveWindow, target) ?: return false
+
+        // Never inject text into fields Android identifies as password fields.
+        // This remains blocked even after the user approves the action.
+        if (node.isPassword) return false
+
         return node.performAction(
             AccessibilityNodeInfo.ACTION_SET_TEXT,
             android.os.Bundle().apply {
