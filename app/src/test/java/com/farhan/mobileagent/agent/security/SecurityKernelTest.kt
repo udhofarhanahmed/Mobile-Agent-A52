@@ -36,4 +36,13 @@ class SecurityKernelTest {
         assertFalse(kernel.isStopped())
         assertEquals(Decision.REQUIRE_CONFIRMATION, kernel.evaluate(ActionRequest(ActionType.TAP)))
     }
+
+    @Test fun backgroundAutonomyCanBeToggled() {
+        val kernel = SecurityKernel()
+        assertTrue(kernel.isBackgroundAutonomyEnabled())
+        kernel.setBackgroundAutonomyEnabled(false)
+        assertFalse(kernel.isBackgroundAutonomyEnabled())
+        kernel.setBackgroundAutonomyEnabled(true)
+        assertTrue(kernel.isBackgroundAutonomyEnabled())
+    }
 }
