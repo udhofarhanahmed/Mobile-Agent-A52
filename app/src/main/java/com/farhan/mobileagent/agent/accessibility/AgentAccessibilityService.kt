@@ -2,6 +2,12 @@ package com.farhan.mobileagent.agent.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
+import com.farhan.mobileagent.agent.audit.AuditLog
+import com.farhan.mobileagent.agent.core.AgentContainer
+import com.farhan.mobileagent.agent.model.ActionRequest
+import com.farhan.mobileagent.agent.model.ActionResult
+import com.farhan.mobileagent.agent.security.ActionGuard
+import com.farhan.mobileagent.agent.security.SecurityKernel
 
 data class ScreenSnapshot(
     val packageName: String?,
@@ -17,6 +23,26 @@ object ScreenStateStore {
 }
 
 class AgentAccessibilityService : AccessibilityService() {
+    private lateinit var executor: ActionExecutor
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        executor = ActionExecutor(
+            service = this,
+            kernel = AgentContainer.securityKernel,
+            guard = AgentContainer.actionGuard,
+            audit = AgentContainer.auditLog
+        )
+        current = this
+    }
+
+    fun executeApproved(request: ActionRequest): ActionResult =
+        if (::executor.isInitialized) {
+            executor.execute(request)
+        } else {
+            ActionResult(false, "Accessibility service is not connected", com.farhan.mobileagent.agent.model.Decision.DENY)
+        }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val root = rootInActiveWindow ?: return
         val texts = collectSafeText(root).take(120)
@@ -46,5 +72,17 @@ class AgentAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         // Fail closed.
+    }
+
+    companion object {
+        @Volatile private var current: AgentAccessibilityService? = null
+        fun instance(): AgentAccessibilityService? = current
+    }
+
+    init {
+        AgentContainer.initialize(applicationContext)
+        if (this::class.java != null) {
+            // Keep initialization side-effect free; executor is created only after connection.
+        }
     }
 }
