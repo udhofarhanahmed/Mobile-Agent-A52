@@ -15,12 +15,14 @@ class TaskStore(context: Context) {
 
     @Synchronized
     fun upsert(task: AgentTask) {
-        require(task.title.length <= MAX_TITLE) { "Task title is too long." }
-        require(task.steps.size <= MAX_STEPS) { "Task has too many steps." }
-        require(task.maxActions in 1..MAX_ACTIONS) { "Invalid action budget." }
+        val safeTask = task.copy(
+            title = task.title.take(MAX_TITLE),
+            steps = task.steps.take(MAX_STEPS),
+            maxActions = task.maxActions.coerceIn(1, MAX_ACTIONS)
+        )
 
         val all = all().associateBy { it.id }.toMutableMap()
-        all[task.id] = task
+        all[safeTask.id] = safeTask
         val bounded = all.values
             .sortedBy { it.createdAt }
             .takeLast(MAX_TASKS)
