@@ -15,6 +15,7 @@ class AgentBootReceiver : BroadcastReceiver() {
         AgentContainer.initialize(appContext)
 
         val shouldResume = !AgentContainer.securityKernel.isStopped() &&
+            AgentContainer.securityKernel.isBackgroundAutonomyEnabled() &&
             TaskStore(appContext).active().any { it.approvedForBackground }
 
         if (shouldResume) {
