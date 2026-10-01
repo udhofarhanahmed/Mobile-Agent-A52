@@ -1,5 +1,6 @@
 package com.farhan.mobileagent.agent.command
 
+import com.farhan.mobileagent.agent.device.DeviceState
 import com.farhan.mobileagent.agent.model.ActionRequest
 import com.farhan.mobileagent.agent.model.ActionType
 import com.farhan.mobileagent.agent.model.TargetSpec
@@ -7,11 +8,12 @@ import com.farhan.mobileagent.agent.model.TargetSpec
 sealed interface CommandResult {
     data class Answer(val text: String) : CommandResult
     data class Action(val request: ActionRequest) : CommandResult
+    data class AddAttention(val title: String, val priority: Int = 60) : CommandResult
     data class Unknown(val text: String) : CommandResult
 }
 
 class LocalCommandRouter {
-    fun route(input: String): CommandResult {
+    fun route(input: String, device: DeviceState? = null): CommandResult {
         val q = input.trim().lowercase()
         return when {
             q == "go home" || q == "home" ->
@@ -28,10 +30,19 @@ class LocalCommandRouter {
                         reason = "User requested a visible target"
                     )
                 )
+            q.startsWith("remember ") ->
+                CommandResult.AddAttention(input.substringAfter("remember ").trim(), 60)
+            q.startsWith("remind me to ") ->
+                CommandResult.AddAttention(input.substringAfter("remind me to ").trim(), 80)
+            q.contains("battery") && device != null ->
+                CommandResult.Answer(
+                    "Battery " + device.batteryPercent + "%. " +
+                        if (device.charging) "The phone is charging." else "The phone is not charging."
+                )
             q == "what are you doing" || q == "status" ->
-                CommandResult.Answer("I am local-first. I can observe supported screens, manage attention, and prepare policy-gated device actions.")
+                CommandResult.Answer("I am local-first. I can manage attention, inspect supported screens, and prepare policy-gated device actions.")
             else ->
-                CommandResult.Unknown("No safe built-in command matched yet.")
+                CommandResult.Unknown("I do not have a safe built-in command for that yet.")
         }
     }
 }
