@@ -563,6 +563,12 @@ class MainActivity : ComponentActivity() {
                                     auditVersion++
                                 }
 
+                                CommandResult.OpenFileLab -> {
+                                    startActivity(Intent(this@MainActivity, FileLabActivity::class.java))
+                                    messages = messages + "Agent: Opening local File Lab."
+                                    auditVersion++
+                                }
+
                                 is CommandResult.AddNote -> {
                                     val note = noteStore.add(result.content)
                                     messages = messages + "You: " + command +
