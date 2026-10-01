@@ -38,6 +38,10 @@ class RuleBasedOfflinePlanner(
                     task = result.task,
                     confidence = 1f
                 )
+            is CommandResult.AddNote ->
+                PlannerProposal(answer = "Local note can be saved.", confidence = 1f)
+            CommandResult.OpenMusic ->
+                PlannerProposal(answer = "The local music player can be opened.", confidence = 1f)
             is CommandResult.Unknown ->
                 PlannerProposal(answer = result.text, confidence = 0f)
         }
