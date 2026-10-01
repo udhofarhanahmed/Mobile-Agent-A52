@@ -41,6 +41,7 @@ import com.farhan.mobileagent.agent.core.PendingAction
 import com.farhan.mobileagent.agent.device.DeviceStateProvider
 import com.farhan.mobileagent.agent.notification.NotificationInbox
 import com.farhan.mobileagent.agent.notification.NotificationListenerState
+import com.farhan.mobileagent.agent.storage.NoteStore
 import com.farhan.mobileagent.agent.task.BackgroundAgentService
 import com.farhan.mobileagent.agent.task.TaskRunner
 import com.farhan.mobileagent.agent.task.TaskState
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var taskStore: TaskStore
     private lateinit var taskRunner: TaskRunner
     private lateinit var notificationInbox: NotificationInbox
+    private lateinit var noteStore: NoteStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,6 +85,7 @@ class MainActivity : ComponentActivity() {
             AgentContainer.securityKernel
         )
         notificationInbox = NotificationInbox(applicationContext)
+        noteStore = NoteStore(applicationContext)
 
         setContent {
             var input by remember { mutableStateOf("") }
@@ -95,6 +98,7 @@ class MainActivity : ComponentActivity() {
             var pendingTaskApproval by remember { mutableStateOf<PendingTaskApproval?>(null) }
             var version by remember { mutableIntStateOf(0) }
             var auditVersion by remember { mutableIntStateOf(0) }
+            var notesVersion by remember { mutableIntStateOf(0) }
 
             LaunchedEffect(voiceTranscript) {
                 voiceTranscript?.let { spoken ->
@@ -367,6 +371,63 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 Column(Modifier.weight(1f)) {
                                     Text(
+                                        "Notes",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "Private local memory • " + noteStore.all().size + " saved",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                Text(
+                                    "LOCAL",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            noteStore.all().take(4).forEach { note ->
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        note.content,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        formatAttentionTime(note.createdAt),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                HorizontalDivider()
+                            }
+
+                            if (noteStore.all().isEmpty()) {
+                                Text(
+                                    "Say or type: “make a note …”",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
                                         "Things worth your attention",
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold
@@ -486,6 +547,18 @@ class MainActivity : ComponentActivity() {
                             when (val result = router.route(command, deviceProvider.snapshot())) {
                                 is CommandResult.Answer ->
                                     messages = messages + "You: " + command + "\nAgent: " + result.text
+
+                                is CommandResult.AddNote -> {
+                                    val note = noteStore.add(result.content)
+                                    messages = messages + "You: " + command +
+                                        "\nAgent: " + if (note != null) {
+                                            "Saved note locally."
+                                        } else {
+                                            "The note was empty, so nothing was saved."
+                                        }
+                                    notesVersion++
+                                    auditVersion++
+                                }
 
                                 is CommandResult.AddAttention -> {
                                     val item = AttentionItem(
@@ -655,7 +728,7 @@ class MainActivity : ComponentActivity() {
                         }) { Text("Reset STOP") }
                     }
 
-                    if (version < 0) Text("")
+                    if (version < 0 || notesVersion < 0) Text("")
                 }
             }
 
