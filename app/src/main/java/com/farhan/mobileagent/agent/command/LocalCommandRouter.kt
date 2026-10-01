@@ -6,6 +6,7 @@ import com.farhan.mobileagent.agent.model.ActionType
 import com.farhan.mobileagent.agent.model.TargetSpec
 import com.farhan.mobileagent.agent.task.AgentTask
 import com.farhan.mobileagent.agent.task.TaskStep
+import com.farhan.mobileagent.agent.tools.LocalCalculator
 
 sealed interface CommandResult {
     data class Answer(val text: String) : CommandResult
@@ -22,6 +23,7 @@ class LocalCommandRouter {
     fun route(input: String, device: DeviceState? = null): CommandResult {
         val q = input.trim().lowercase()
         val reminder = Regex("^remind me to (.+) in (\\d+) (minute|minutes|hour|hours)$").find(q)
+        val percentOf = Regex("^(?:calculate\\s+|calc\\s+|what is\\s+)?([0-9.]+)%\\s+of\\s+([0-9.]+)$").find(q)
         val background = q.removePrefix("background ").trim()
         val appPackage = appPackageFor(q.removePrefix("open app ").removePrefix("open ").trim())
 
@@ -64,6 +66,18 @@ class LocalCommandRouter {
                     priority = 90,
                     dueAt = System.currentTimeMillis() + delayMs
                 )
+            }
+            percentOf != null -> {
+                val result = runCatching {
+                    LocalCalculator.percentOf(percentOf.groupValues[1], percentOf.groupValues[2])
+                }.getOrElse { return CommandResult.Unknown("I could not calculate that expression.") }
+                CommandResult.Answer(percentOf.groupValues[1] + "% of " + percentOf.groupValues[2] + " = " + result.formatted)
+            }
+            q.startsWith("calculate ") || q.startsWith("calc ") -> {
+                val expression = input.substringAfter(" ").trim()
+                val result = runCatching { LocalCalculator.calculate(expression) }
+                    .getOrElse { return CommandResult.Unknown("I could not safely calculate that expression.") }
+                CommandResult.Answer(expression + " = " + result.formatted)
             }
             q.startsWith("open app ") && q.removePrefix("open app ").trim().contains(".") ->
                 CommandResult.Action(ActionRequest(
