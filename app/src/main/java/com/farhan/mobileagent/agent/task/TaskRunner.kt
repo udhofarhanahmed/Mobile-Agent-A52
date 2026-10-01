@@ -56,7 +56,7 @@ class TaskRunner(
         if (service == null) {
             if (task != null && task.state != TaskState.PAUSED) {
                 store.upsert(
-                    runnableTask.copy(
+                    task.copy(
                         state = TaskState.PAUSED,
                         lastError = "Accessibility service unavailable"
                     )
@@ -72,7 +72,7 @@ class TaskRunner(
         } ?: return "IDLE"
 
         TaskBudgetPolicy.exceeded(runnableTask)?.let { reason ->
-            store.upsert(task.copy(state = TaskState.FAILED, lastError = reason))
+            store.upsert(runnableTask.copy(state = TaskState.FAILED, lastError = reason))
             return "FAILED"
         }
 
@@ -105,17 +105,17 @@ class TaskRunner(
             return handleFailure(runnableTask, nextActionCount, "Post-action verification failed")
         }
 
-        val next = task.currentStep + 1
+        val next = runnableTask.currentStep + 1
         store.upsert(
-            task.copy(
-                state = if (next >= task.steps.size) TaskState.COMPLETED else TaskState.RUNNING,
+            runnableTask.copy(
+                state = if (next >= runnableTask.steps.size) TaskState.COMPLETED else TaskState.RUNNING,
                 currentStep = next,
                 attempts = 0,
                 actionsExecuted = nextActionCount,
                 lastError = null
             )
         )
-        return if (next >= task.steps.size) "COMPLETED" else "STEP_OK"
+        return if (next >= runnableTask.steps.size) "COMPLETED" else "STEP_OK"
     }
 
     private fun handleFailure(task: AgentTask, actionCount: Int, message: String): String {
