@@ -44,46 +44,65 @@ class TaskRunner(
 ) {
     fun tick(): String {
         if (kernel.isStopped()) return "STOPPED"
-        val task = store.active().firstOrNull { it.approvedForBackground } ?: return "IDLE"
 
-        TaskBudgetPolicy.exceeded(task)?.let { reason ->
+        val approvedTasks = store.active().filter { it.approvedForBackground }
+        if (approvedTasks.isEmpty()) return "IDLE"
+
+        val service = AgentAccessibilityService.instance()
+        val task = approvedTasks.firstOrNull {
+            it.state == TaskState.QUEUED || it.state == TaskState.RUNNING
+        } ?: approvedTasks.firstOrNull()
+
+        if (service == null) {
+            if (task != null && task.state != TaskState.PAUSED) {
+                store.upsert(
+                    runnableTask.copy(
+                        state = TaskState.PAUSED,
+                        lastError = "Accessibility service unavailable"
+                    )
+                )
+            }
+            return "PAUSED"
+        }
+
+        val runnableTask = if (task?.state == TaskState.PAUSED) {
+            task.copy(state = TaskState.RUNNING, lastError = null).also(store::upsert)
+        } else {
+            task
+        } ?: return "IDLE"
+
+        TaskBudgetPolicy.exceeded(runnableTask)?.let { reason ->
             store.upsert(task.copy(state = TaskState.FAILED, lastError = reason))
             return "FAILED"
         }
 
-        if (task.deadlineAt != null && System.currentTimeMillis() > task.deadlineAt) {
-            store.upsert(task.copy(state = TaskState.FAILED, lastError = "Deadline exceeded"))
+        if (runnableTask.deadlineAt != null && System.currentTimeMillis() > runnableTask.deadlineAt) {
+            store.upsert(runnableTask.copy(state = TaskState.FAILED, lastError = "Deadline exceeded"))
             return "FAILED"
         }
-        if (task.currentStep >= task.steps.size) {
-            store.upsert(task.copy(state = TaskState.COMPLETED))
+        if (runnableTask.currentStep >= runnableTask.steps.size) {
+            store.upsert(runnableTask.copy(state = TaskState.COMPLETED))
             return "COMPLETED"
         }
 
-        val step = task.steps[task.currentStep]
+        val step = runnableTask.steps[runnableTask.currentStep]
         if (!BackgroundActionPolicy.mayRunUnattended(step.action.type)) {
-            store.upsert(task.copy(
+            store.upsert(runnableTask.copy(
                 state = TaskState.WAITING_FOR_USER,
                 lastError = "Sensitive step requires approval"
             ))
             return "WAITING_FOR_USER"
         }
 
-        val service = AgentAccessibilityService.instance()
-            ?: run {
-                store.upsert(task.copy(state = TaskState.PAUSED, lastError = "Accessibility service unavailable"))
-                return "PAUSED"
-            }
-
-        val nextActionCount = task.actionsExecuted + 1
+        val nextActionCount = runnableTask.actionsExecuted + 1
         val autonomousRequest = step.action.copy(requiresConfirmation = false, confirmed = true)
         val result = service.executeApproved(autonomousRequest)
         if (!result.success) {
-            return handleFailure(task, nextActionCount, result.message)
+            return handleFailure(runnableTask, nextActionCount, result.message)
         }
 
         if (!verifyStep(step)) {
-            return handleFailure(task, nextActionCount, "Post-action verification failed")
+            return handleFailure(runnableTask, nextActionCount, "Post-action verification failed")
         }
 
         val next = task.currentStep + 1
