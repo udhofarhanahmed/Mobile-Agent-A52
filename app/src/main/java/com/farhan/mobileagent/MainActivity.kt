@@ -55,6 +55,7 @@ private data class PendingTaskApproval(
 
 class MainActivity : ComponentActivity() {
     private var voiceTranscript by mutableStateOf<String?>(null)
+    private var settingsRefresh by mutableIntStateOf(0)
 
     private lateinit var runtime: AgentRuntime
     private lateinit var attention: com.farhan.mobileagent.agent.attention.AttentionManager
@@ -88,6 +89,7 @@ class MainActivity : ComponentActivity() {
         noteStore = NoteStore(applicationContext)
 
         setContent {
+            val refreshToken = settingsRefresh
             var input by remember { mutableStateOf("") }
             var messages by remember { mutableStateOf(listOf("Agent: Local-first and ready.")) }
             var stopped by remember { mutableStateOf(AgentContainer.securityKernel.isStopped()) }
@@ -749,7 +751,7 @@ class MainActivity : ComponentActivity() {
                         }) { Text("Reset STOP") }
                     }
 
-                    if (version < 0 || notesVersion < 0) Text("")
+                    if (version < 0 || notesVersion < 0 || refreshToken < 0) Text("")
                 }
             }
 
@@ -843,6 +845,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        settingsRefresh++
     }
 
     @Deprecated("Activity result API retained for compatibility with the current local-first shell.")
