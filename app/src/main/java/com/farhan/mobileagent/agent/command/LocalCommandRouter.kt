@@ -22,6 +22,14 @@ class LocalCommandRouter {
                 CommandResult.Action(ActionRequest(ActionType.BACK, reason = "User requested Back"))
             q == "recent apps" || q == "recents" ->
                 CommandResult.Action(ActionRequest(ActionType.RECENTS, reason = "User requested Recents"))
+            q == "open settings" || q == "settings" ->
+                CommandResult.Action(ActionRequest(ActionType.OPEN_SETTINGS, reason = "User requested Android Settings"))
+            q == "volume up" || q == "increase volume" ->
+                CommandResult.Action(ActionRequest(ActionType.VOLUME_UP, reason = "User requested volume increase"))
+            q == "volume down" || q == "decrease volume" ->
+                CommandResult.Action(ActionRequest(ActionType.VOLUME_DOWN, reason = "User requested volume decrease"))
+            q == "mute" || q == "mute phone" ->
+                CommandResult.Action(ActionRequest(ActionType.MUTE, reason = "User requested mute"))
             q.startsWith("tap ") ->
                 CommandResult.Action(
                     ActionRequest(
@@ -40,7 +48,9 @@ class LocalCommandRouter {
                         if (device.charging) "The phone is charging." else "The phone is not charging."
                 )
             q == "what are you doing" || q == "status" ->
-                CommandResult.Answer("I am local-first. I can manage attention, inspect supported screens, and prepare policy-gated device actions.")
+                CommandResult.Answer(
+                    "I am local-first. I can manage attention, inspect supported screens, and prepare policy-gated device actions."
+                )
             else ->
                 CommandResult.Unknown("I do not have a safe built-in command for that yet.")
         }
