@@ -30,6 +30,11 @@ class RuleBasedOfflinePlanner(
                     answer = "Attention item can be created locally.",
                     confidence = 1f
                 )
+            is CommandResult.BackgroundTask ->
+                PlannerProposal(
+                    answer = "Background task planned: " + result.task.title,
+                    confidence = 1f
+                )
             is CommandResult.Unknown ->
                 PlannerProposal(answer = result.text, confidence = 0f)
         }
