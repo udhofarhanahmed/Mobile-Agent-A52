@@ -1,7 +1,21 @@
 package com.farhan.mobileagent.agent.model
 
-enum class ActionType { OBSERVE, TAP, SWIPE, BACK, HOME, RECENTS, TYPE_TEXT }
+enum class ActionType {
+    OBSERVE,
+    TAP,
+    SWIPE,
+    BACK,
+    HOME,
+    RECENTS,
+    TYPE_TEXT,
+    OPEN_SETTINGS,
+    VOLUME_UP,
+    VOLUME_DOWN,
+    MUTE
+}
+
 enum class Decision { ALLOW, REQUIRE_CONFIRMATION, DENY }
+
 enum class ConfirmationLevel { NONE, SENSITIVE, ALWAYS }
 
 data class TargetSpec(
