@@ -1,8 +1,12 @@
 package com.farhan.mobileagent
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.app.ActivityCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +18,7 @@ import com.farhan.mobileagent.agent.accessibility.AgentAccessibilityService
 import com.farhan.mobileagent.agent.accessibility.ScreenStateStore
 import com.farhan.mobileagent.agent.assistant.RuleBasedLocalModel
 import com.farhan.mobileagent.agent.attention.AttentionItem
+import com.farhan.mobileagent.agent.attention.ReminderScheduler
 import com.farhan.mobileagent.agent.command.CommandResult
 import com.farhan.mobileagent.agent.command.LocalCommandRouter
 import com.farhan.mobileagent.agent.core.AgentContainer
@@ -26,6 +31,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var assistant: RuleBasedLocalModel
     private val router = LocalCommandRouter()
     private lateinit var deviceProvider: DeviceStateProvider
+    private lateinit var reminderScheduler: ReminderScheduler
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,6 +39,7 @@ class MainActivity : ComponentActivity() {
 
         attention = AgentContainer.attentionManager
         deviceProvider = DeviceStateProvider(this)
+        reminderScheduler = ReminderScheduler(applicationContext)
         assistant = RuleBasedLocalModel(attention, deviceProvider)
         runtime = AgentRuntime(
             AgentContainer.securityKernel,
@@ -94,14 +101,28 @@ class MainActivity : ComponentActivity() {
                                     messages = messages + "You: " + command + "\nAgent: " + result.text
 
                                 is CommandResult.AddAttention -> {
-                                    attention.add(
-                                        AttentionItem(
-                                            title = result.title,
-                                            priority = result.priority
-                                        )
+                                    val item = AttentionItem(
+                                        title = result.title,
+                                        priority = result.priority,
+                                        dueAt = result.dueAt
                                     )
+                                    attention.add(item)
+                                    result.dueAt?.let { reminderScheduler.schedule(item) }
+
+                                    if (result.dueAt != null &&
+                                        Build.VERSION.SDK_INT >= 33 &&
+                                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        ActivityCompat.requestPermissions(
+                                            this@MainActivity,
+                                            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                                            501
+                                        )
+                                    }
+
                                     attentionVersion++
-                                    messages = messages + "You: " + command + "\nAgent: Added to attention."
+                                    messages = messages + "You: " + command + "\nAgent: " +
+                                        if (result.dueAt != null) "Reminder scheduled locally." else "Added to attention."
                                 }
 
                                 is CommandResult.Action -> {
@@ -148,10 +169,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (attention.pending().isNotEmpty()) {
-                        Text(
-                            "Attention",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        Text("Attention", style = MaterialTheme.typography.titleMedium)
                         attention.pending().take(3).forEach { item ->
                             Row(
                                 Modifier.fillMaxWidth(),
@@ -159,6 +177,7 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 Text(item.title, Modifier.weight(1f))
                                 TextButton(onClick = {
+                                    if (item.dueAt != null) reminderScheduler.cancel(item)
                                     attention.complete(item.id)
                                     attentionVersion++
                                 }) { Text("Done") }
