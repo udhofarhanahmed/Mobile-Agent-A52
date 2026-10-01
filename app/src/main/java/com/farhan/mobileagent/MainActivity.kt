@@ -13,6 +13,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -103,6 +105,7 @@ class MainActivity : ComponentActivity() {
                 Column(
                     Modifier.fillMaxSize()
                         .background(MaterialTheme.colorScheme.background)
+                        .verticalScroll(rememberScrollState())
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -436,11 +439,25 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    LazyColumn(
-                        Modifier.weight(1f).fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp)
                     ) {
-                        items(messages) { message -> Text(message) }
+                        Column(
+                            Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            messages.takeLast(8).reversed().forEachIndexed { index, message ->
+                                Text(
+                                    message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = if (index == 0) FontWeight.Medium else FontWeight.Normal
+                                )
+                                if (index < messages.takeLast(8).lastIndex) {
+                                    HorizontalDivider()
+                                }
+                            }
+                        }
                     }
 
                     OutlinedTextField(
