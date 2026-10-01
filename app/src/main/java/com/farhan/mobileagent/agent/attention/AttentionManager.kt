@@ -30,6 +30,7 @@ class AttentionManager(context: Context? = null) {
     @Synchronized
     fun add(item: AttentionItem) {
         items += item
+        trimToLimit()
         save()
     }
 
@@ -37,6 +38,7 @@ class AttentionManager(context: Context? = null) {
     fun upsert(item: AttentionItem) {
         val index = items.indexOfFirst { it.id == item.id }
         if (index >= 0) items[index] = item else items += item
+        trimToLimit()
         save()
     }
 
@@ -65,10 +67,10 @@ class AttentionManager(context: Context? = null) {
             items.forEach { item ->
                 put(JSONObject().apply {
                     put("id", item.id)
-                    put("title", item.title)
-                    put("detail", item.detail)
+                    put("title", item.title.take(MAX_TEXT))
+                    put("detail", item.detail.take(MAX_TEXT))
                     put("kind", item.kind.name)
-                    put("priority", item.priority)
+                    put("priority", item.priority.coerceIn(0, 100))
                     put("dueAt", item.dueAt ?: JSONObject.NULL)
                     put("createdAt", item.createdAt)
                     put("completed", item.completed)
@@ -77,21 +79,40 @@ class AttentionManager(context: Context? = null) {
         }.toString())
     }
 
+    private fun trimToLimit() {
+        if (items.size <= MAX_ITEMS) return
+        val keep = items.sortedWith(
+            compareByDescending<AttentionItem> { !it.completed }
+                .thenByDescending { it.priority }
+                .thenBy { it.createdAt }
+        ).take(MAX_ITEMS)
+        items.clear()
+        items.addAll(keep)
+    }
+
     private fun load() {
         val raw = memory?.get("attention_items") ?: return
-        val array = JSONArray(raw)
-        for (i in 0 until array.length()) {
-            val o = array.getJSONObject(i)
-            items += AttentionItem(
-                id = o.optString("id"),
-                title = o.optString("title"),
-                detail = o.optString("detail"),
-                kind = runCatching { AttentionKind.valueOf(o.optString("kind")) }.getOrDefault(AttentionKind.TASK),
-                priority = o.optInt("priority", 50),
-                dueAt = if (o.isNull("dueAt")) null else o.optLong("dueAt"),
-                createdAt = o.optLong("createdAt", System.currentTimeMillis()),
-                completed = o.optBoolean("completed", false)
-            )
+        runCatching {
+            val array = JSONArray(raw)
+            for (i in 0 until array.length()) {
+                val o = array.getJSONObject(i)
+                items += AttentionItem(
+                    id = o.optString("id").ifBlank { UUID.randomUUID().toString() },
+                    title = o.optString("title").take(MAX_TEXT),
+                    detail = o.optString("detail").take(MAX_TEXT),
+                    kind = runCatching { AttentionKind.valueOf(o.optString("kind")) }.getOrDefault(AttentionKind.TASK),
+                    priority = o.optInt("priority", 50).coerceIn(0, 100),
+                    dueAt = if (o.isNull("dueAt")) null else o.optLong("dueAt"),
+                    createdAt = o.optLong("createdAt", System.currentTimeMillis()),
+                    completed = o.optBoolean("completed", false)
+                )
+            }
+            trimToLimit()
         }
+    }
+
+    private companion object {
+        const val MAX_ITEMS = 500
+        const val MAX_TEXT = 500
     }
 }
