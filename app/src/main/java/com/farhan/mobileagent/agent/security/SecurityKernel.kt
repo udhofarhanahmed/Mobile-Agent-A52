@@ -1,19 +1,24 @@
 package com.farhan.mobileagent.agent.security
 
-enum class ActionType { OBSERVE, TAP, SWIPE, BACK, HOME, RECENTS, TYPE_TEXT }
-enum class Decision { ALLOW, REQUIRE_CONFIRMATION, DENY }
-
-data class ActionRequest(val type: ActionType, val target: String? = null, val reason: String = "")
+import com.farhan.mobileagent.agent.model.ActionRequest
+import com.farhan.mobileagent.agent.model.ActionType
+import com.farhan.mobileagent.agent.model.Decision
 
 class SecurityKernel {
     @Volatile private var stopped = false
+
     fun evaluate(request: ActionRequest): Decision {
         if (stopped) return Decision.DENY
         return when (request.type) {
             ActionType.OBSERVE -> Decision.ALLOW
-            else -> Decision.REQUIRE_CONFIRMATION
+            else -> if (request.requiresConfirmation && !request.confirmed) {
+                Decision.REQUIRE_CONFIRMATION
+            } else {
+                Decision.ALLOW
+            }
         }
     }
+
     fun emergencyStop() { stopped = true }
     fun resetAfterExplicitUserAction() { stopped = false }
     fun isStopped(): Boolean = stopped
