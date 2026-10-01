@@ -43,7 +43,7 @@ class VoiceActivity : ComponentActivity() {
             }
             var listening by remember { mutableStateOf(false) }
 
-            MobileAgentTheme {
+            MaterialTheme {
                 Column(
                     Modifier.fillMaxSize().padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
