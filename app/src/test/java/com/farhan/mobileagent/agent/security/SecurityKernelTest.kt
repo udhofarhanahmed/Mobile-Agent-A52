@@ -22,6 +22,14 @@ class SecurityKernelTest {
         assertEquals(Decision.ALLOW, kernel.evaluate(ActionRequest(ActionType.HOME, confirmed = true)))
     }
 
+    @Test fun callerCannotDisableConfirmationPolicy() {
+        val kernel = SecurityKernel()
+        assertEquals(
+            Decision.REQUIRE_CONFIRMATION,
+            kernel.evaluate(ActionRequest(ActionType.TYPE_TEXT, requiresConfirmation = false))
+        )
+    }
+
     @Test fun emergencyStopDeniesEverything() {
         val kernel = SecurityKernel()
         kernel.emergencyStop()
