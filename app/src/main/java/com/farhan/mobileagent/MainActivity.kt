@@ -21,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -278,7 +279,7 @@ class MainActivity : ComponentActivity() {
                                     Text("Background autonomy", fontWeight = FontWeight.SemiBold)
                                     Text(
                                         when {
-                                            stopped -> "Policy is " + if (autonomyEnabled) "ON" else "OFF" +
+                                            stopped -> "Policy is " + (if (autonomyEnabled) "ON" else "OFF") +
                                                 " • Emergency STOP overrides execution."
                                             autonomyEnabled -> "ON • Authorized tasks may run within policy limits."
                                             else -> "OFF • Autonomous background execution is disabled."
