@@ -1,6 +1,9 @@
 package com.farhan.mobileagent.agent.task
 
 import android.content.Context
+import com.farhan.mobileagent.agent.model.ActionRequest
+import com.farhan.mobileagent.agent.model.ActionType
+import com.farhan.mobileagent.agent.model.TargetSpec
 import com.farhan.mobileagent.agent.storage.LocalMemory
 import org.json.JSONArray
 import org.json.JSONObject
@@ -35,10 +38,15 @@ class TaskStore(context: Context) {
         get(id)?.let { upsert(it.copy(state = TaskState.CANCELLED)) }
     }
 
+    @Synchronized
+    fun authorizeBackground(id: String): AgentTask? =
+        get(id)?.copy(approvedForBackground = true, state = TaskState.RUNNING)?.also(::upsert)
+
     private fun encode(t: AgentTask) = JSONObject().apply {
         put("id", t.id); put("title", t.title); put("createdAt", t.createdAt)
         put("deadlineAt", t.deadlineAt ?: JSONObject.NULL); put("state", t.state.name)
         put("currentStep", t.currentStep); put("attempts", t.attempts)
+        put("approvedForBackground", t.approvedForBackground)
         put("lastError", t.lastError ?: JSONObject.NULL)
         put("steps", JSONArray().apply { t.steps.forEach { s ->
             put(JSONObject().apply {
@@ -60,15 +68,15 @@ class TaskStore(context: Context) {
             val a = o.getJSONArray("steps")
             for (i in 0 until a.length()) {
                 val s = a.getJSONObject(i)
-                val type = runCatching { com.farhan.mobileagent.agent.model.ActionType.valueOf(s.getString("type")) }
-                    .getOrDefault(com.farhan.mobileagent.agent.model.ActionType.OBSERVE)
+                val type = runCatching { ActionType.valueOf(s.getString("type")) }
+                    .getOrDefault(ActionType.OBSERVE)
                 add(TaskStep(
                     id = s.optString("id"),
-                    action = com.farhan.mobileagent.agent.model.ActionRequest(
+                    action = ActionRequest(
                         type = type,
                         packageName = s.optString("package").takeIf { it.isNotBlank() },
                         text = s.optString("text").takeIf { it.isNotBlank() },
-                        target = com.farhan.mobileagent.agent.model.TargetSpec(
+                        target = TargetSpec(
                             text = s.optString("targetText").takeIf { it.isNotBlank() },
                             resourceId = s.optString("targetId").takeIf { it.isNotBlank() },
                             contentDescription = s.optString("targetDesc").takeIf { it.isNotBlank() }
@@ -91,6 +99,7 @@ class TaskStore(context: Context) {
             state = runCatching { TaskState.valueOf(o.optString("state")) }.getOrDefault(TaskState.QUEUED),
             currentStep = o.optInt("currentStep"),
             attempts = o.optInt("attempts"),
+            approvedForBackground = o.optBoolean("approvedForBackground", false),
             lastError = o.optString("lastError").takeIf { it.isNotBlank() }
         )
     }
