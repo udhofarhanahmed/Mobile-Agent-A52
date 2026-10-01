@@ -16,6 +16,7 @@ class LocalCommandRouter {
     fun route(input: String, device: DeviceState? = null): CommandResult {
         val q = input.trim().lowercase()
         val reminder = Regex("^remind me to (.+) in (\\d+) (minute|minutes|hour|hours)$").find(q)
+        val appPackage = appPackageFor(q.removePrefix("open app ").removePrefix("open ").trim())
 
         return when {
             reminder != null -> {
@@ -29,6 +30,22 @@ class LocalCommandRouter {
                     dueAt = System.currentTimeMillis() + delayMs
                 )
             }
+            q.startsWith("open app ") && q.removePrefix("open app ").trim().contains(".") ->
+                CommandResult.Action(
+                    ActionRequest(
+                        type = ActionType.OPEN_APP,
+                        packageName = q.removePrefix("open app ").trim(),
+                        reason = "User requested a specific app package"
+                    )
+                )
+            q.startsWith("open ") && appPackage != null ->
+                CommandResult.Action(
+                    ActionRequest(
+                        type = ActionType.OPEN_APP,
+                        packageName = appPackage,
+                        reason = "User requested an app"
+                    )
+                )
             q == "go home" || q == "home" ->
                 CommandResult.Action(ActionRequest(ActionType.HOME, reason = "User requested Home"))
             q == "go back" || q == "back" ->
@@ -65,5 +82,13 @@ class LocalCommandRouter {
             else ->
                 CommandResult.Unknown("I do not have a safe built-in command for that yet.")
         }
+    }
+
+    private fun appPackageFor(name: String): String? = when (name) {
+        "chrome", "google chrome" -> "com.android.chrome"
+        "youtube" -> "com.google.android.youtube"
+        "whatsapp" -> "com.whatsapp"
+        "telegram" -> "org.telegram.messenger"
+        else -> null
     }
 }
