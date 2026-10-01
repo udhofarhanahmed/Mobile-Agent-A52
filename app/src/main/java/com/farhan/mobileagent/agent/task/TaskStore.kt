@@ -15,9 +15,18 @@ class TaskStore(context: Context) {
 
     @Synchronized
     fun upsert(task: AgentTask) {
+        require(task.title.length <= MAX_TITLE) { "Task title is too long." }
+        require(task.steps.size <= MAX_STEPS) { "Task has too many steps." }
+        require(task.maxActions in 1..MAX_ACTIONS) { "Invalid action budget." }
+
         val all = all().associateBy { it.id }.toMutableMap()
         all[task.id] = task
-        memory.put(key, JSONArray().apply { all.values.forEach { put(encode(it)) } }.toString())
+        val bounded = all.values
+            .sortedBy { it.createdAt }
+            .takeLast(MAX_TASKS)
+        memory.put(key, JSONArray().apply {
+            bounded.forEach { put(encode(it)) }
+        }.toString())
     }
 
     @Synchronized
@@ -41,7 +50,14 @@ class TaskStore(context: Context) {
 
     @Synchronized
     fun authorizeBackground(id: String): AgentTask? =
-        get(id)?.copy(approvedForBackground = true, state = TaskState.RUNNING)?.also(::upsert)
+        get(id)?.takeIf {
+            it.state == TaskState.QUEUED ||
+                it.state == TaskState.WAITING_FOR_USER ||
+                it.state == TaskState.PAUSED
+        }?.copy(
+            approvedForBackground = true,
+            state = if (it.state == TaskState.WAITING_FOR_USER) TaskState.WAITING_FOR_USER else TaskState.RUNNING
+        )?.also(::upsert)
 
     private fun encode(t: AgentTask) = JSONObject().apply {
         put("id", t.id); put("title", t.title); put("createdAt", t.createdAt)
@@ -110,6 +126,13 @@ class TaskStore(context: Context) {
             approvedForBackground = o.optBoolean("approvedForBackground", false),
             lastError = nullableString(o, "lastError")
         )
+    }
+
+    private companion object {
+        const val MAX_TASKS = 100
+        const val MAX_STEPS = 50
+        const val MAX_ACTIONS = 100
+        const val MAX_TITLE = 200
     }
 
     private fun nullableString(o: JSONObject, key: String): String? =
