@@ -40,6 +40,7 @@ class ActionExecutor(
                 ActionType.TAP -> tap(request.target)
                 ActionType.TYPE_TEXT -> typeText(request.target, request.text.orEmpty())
                 ActionType.SWIPE -> swipe(request.gesture)
+                ActionType.OPEN_APP -> openApp(request.packageName)
                 ActionType.OPEN_SETTINGS -> openSettings()
                 ActionType.VOLUME_UP -> adjustVolume(AudioManager.ADJUST_RAISE)
                 ActionType.VOLUME_DOWN -> adjustVolume(AudioManager.ADJUST_LOWER)
@@ -81,13 +82,19 @@ class ActionExecutor(
         return service.dispatchGesture(gesture, null, null)
     }
 
+    private fun openApp(packageName: String?): Boolean {
+        if (packageName.isNullOrBlank()) return false
+        val launchIntent = service.packageManager.getLaunchIntentForPackage(packageName) ?: return false
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        service.startActivity(launchIntent)
+        return true
+    }
+
     private fun openSettings(): Boolean {
-        return runCatching {
-            service.startActivity(
-                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-            true
-        }.getOrDefault(false)
+        service.startActivity(
+            Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        return true
     }
 
     private fun adjustVolume(direction: Int): Boolean {
