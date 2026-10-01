@@ -1,53 +1,107 @@
 # Mobile Agent A52
 
-A security-first, local-first Android agent designed for the Samsung Galaxy A52.
+A security-first, local-first Android personal agent designed for the Samsung Galaxy A52.
 
-## What this project is becoming
+## Current capabilities
 
-This is not a single-purpose macro app. The target is a personal device agent that can manage attention, answer locally, inspect the current screen, prepare tasks, and control supported mobile functions—while every device action remains policy-gated.
-
-### Current foundation
-
-- Kotlin + Jetpack Compose
-- AccessibilityService-based screen observation
-- Central security kernel
-- Explicit confirmation model
+- Local chat / command interface
+- Persistent attention items
+- Timed reminders using local Android alarms
+- Local notification reminders
+- Screen observation through AccessibilityService
+- Password-field exclusion from observation
+- Tap, swipe, text entry and navigation
+- Open Android Settings
+- Volume up, volume down and mute
+- Launch supported apps by command
 - Emergency STOP
-- Action rate limiting
+- Explicit approval UI for device actions
+- Action rate limiting and loop protection
 - Local audit events
-- Attention manager
-- Offline answer interface with a deterministic local model
-- No INTERNET permission in the baseline manifest
-- GitHub Actions for tests and APK builds
+- Persistent local memory foundation
+- GitHub Actions unit tests and debug APK builds
 
-### Security boundary
+## Security architecture
 
-assistant / future local AI
-→ planner
-→ security kernel
-→ confirmation
-→ action executor
-→ Android APIs
+```
+User
+  ↓
+Chat / Command Router
+  ↓
+Offline Planner / optional local AI
+  ↓
+Security Kernel
+  ↓
+Confirmation Gate
+  ↓
+Action Executor
+  ↓
+Android APIs / Accessibility
+  ↓
+Audit Log
+```
 
-The planner is never the authority. The security kernel is.
+The planner is never the authority.
 
-Sensitive screen text is not persisted by the baseline observer, and password fields are excluded from the in-memory screen snapshot.
+Any future local AI model is treated as an untrusted planner. Its proposals are sanitized so device actions remain unconfirmed until the user explicitly approves them. The baseline application does not declare the INTERNET permission.
 
-### Offline AI direction
+## Offline AI
 
-A future on-device model can implement the LocalModel interface. The model may propose answers or actions, but it does not receive direct access to Android APIs. Network access is intentionally absent from the baseline.
+The OfflinePlanner interface is ready for an on-device model that is packaged locally or otherwise available without network access. The model will produce answers or proposed actions only.
 
-### Capability roadmap
+The project intentionally separates intelligence from authority:
 
-1. Reliable observation and screen understanding.
-2. Safe device actions: tap, swipe, navigation, text entry, and structured target selection.
-3. Attention system: reminders, tasks, follow-ups, routines, and interruption control.
-4. Local command router: convert natural language into safe, reviewable intents.
-5. Offline AI plugin behind the same security boundary.
-6. Local memory with explicit retention controls.
-7. Device utilities and system integrations where Android permits them.
-8. Hardening, adversarial tests, and A52 device validation.
+- AI can suggest.
+- The policy engine decides.
+- The user approves sensitive actions.
+- The executor performs only approved actions.
+- The audit layer records the result.
+
+## Attention model
+
+The agent is becoming a personal attention layer rather than a simple macro:
+
+- tasks
+- reminders
+- follow-ups
+- alerts
+- priority ordering
+- completion
+- persistent storage
+- scheduled local notifications
+
+Example local commands:
+
+- `remember buy milk`
+- `remind me to call Ali in 10 minutes`
+- `battery`
+- `open settings`
+- `open chrome`
+- `volume up`
+- `tap Settings`
+- `go home`
+
+Commands that affect the phone are prepared for approval rather than executed silently.
+
+## Roadmap
+
+### Phase 1 — deterministic agent core
+Security kernel, accessibility observation, action primitives, confirmation, emergency stop, audit.
+
+### Phase 2 — personal assistant layer
+Persistent attention, reminders, local memory, device state, command routing, app launch and everyday controls.
+
+### Phase 3 — deeper device intelligence
+Better screen understanding, multi-step plans, action verification, retry rules, safe workflows, notification handling, and broader Android integrations.
+
+### Phase 4 — offline AI
+Optional on-device model behind OfflinePlanner. No network authority. No direct Android API access.
+
+### Phase 5 — hardening
+Adversarial tests, data-retention controls, crash recovery, permission inventory, A52 device validation, and release signing.
 
 ## Build
 
 GitHub Actions runs unit tests and produces a debug APK artifact on pushes to main.
+
+The repository is intentionally private while the security model and device behavior are still being hardened.
