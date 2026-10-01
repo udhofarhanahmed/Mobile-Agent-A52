@@ -8,14 +8,27 @@ import com.farhan.mobileagent.agent.model.TargetSpec
 sealed interface CommandResult {
     data class Answer(val text: String) : CommandResult
     data class Action(val request: ActionRequest) : CommandResult
-    data class AddAttention(val title: String, val priority: Int = 60) : CommandResult
+    data class AddAttention(val title: String, val priority: Int = 60, val dueAt: Long? = null) : CommandResult
     data class Unknown(val text: String) : CommandResult
 }
 
 class LocalCommandRouter {
     fun route(input: String, device: DeviceState? = null): CommandResult {
         val q = input.trim().lowercase()
+        val reminder = Regex("^remind me to (.+) in (\\d+) (minute|minutes|hour|hours)$").find(q)
+
         return when {
+            reminder != null -> {
+                val amount = reminder.groupValues[2].toLong()
+                val unit = reminder.groupValues[3]
+                val delayMs = if (unit.startsWith("hour")) amount * 60L * 60L * 1000L
+                else amount * 60L * 1000L
+                CommandResult.AddAttention(
+                    title = reminder.groupValues[1].trim(),
+                    priority = 90,
+                    dueAt = System.currentTimeMillis() + delayMs
+                )
+            }
             q == "go home" || q == "home" ->
                 CommandResult.Action(ActionRequest(ActionType.HOME, reason = "User requested Home"))
             q == "go back" || q == "back" ->
@@ -40,8 +53,6 @@ class LocalCommandRouter {
                 )
             q.startsWith("remember ") ->
                 CommandResult.AddAttention(input.substringAfter("remember ").trim(), 60)
-            q.startsWith("remind me to ") ->
-                CommandResult.AddAttention(input.substringAfter("remind me to ").trim(), 80)
             q.contains("battery") && device != null ->
                 CommandResult.Answer(
                     "Battery " + device.batteryPercent + "%. " +
