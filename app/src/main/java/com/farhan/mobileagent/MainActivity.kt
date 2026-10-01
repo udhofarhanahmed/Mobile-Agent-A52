@@ -75,13 +75,20 @@ class MainActivity : ComponentActivity() {
             var input by remember { mutableStateOf("") }
             var messages by remember { mutableStateOf(listOf("Agent: Local-first and ready.")) }
             var stopped by remember { mutableStateOf(AgentContainer.securityKernel.isStopped()) }
+            var autonomyEnabled by remember {
+                mutableStateOf(AgentContainer.securityKernel.isBackgroundAutonomyEnabled())
+            }
             var pending by remember { mutableStateOf<PendingAction?>(null) }
             var pendingTaskApproval by remember { mutableStateOf<PendingTaskApproval?>(null) }
             var version by remember { mutableIntStateOf(0) }
+            var auditVersion by remember { mutableIntStateOf(0) }
 
             val notificationEnabled = NotificationManagerCompat
                 .getEnabledListenerPackages(this@MainActivity)
                 .contains(packageName)
+            val auditEvents = remember(auditVersion) {
+                AgentContainer.auditLog.snapshot().takeLast(8).asReversed()
+            }
 
             MaterialTheme {
                 Column(
@@ -107,6 +114,79 @@ class MainActivity : ComponentActivity() {
                                 "awareness disabled"
                             }
                     )
+
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(
+                            Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "Security controls",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Background autonomy")
+                                    Text(
+                                        if (autonomyEnabled) {
+                                            "Authorized background tasks may run within policy limits."
+                                        } else {
+                                            "Background execution is globally disabled."
+                                        },
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                Switch(
+                                    checked = autonomyEnabled,
+                                    onCheckedChange = { enabled ->
+                                        AgentContainer.securityKernel.setBackgroundAutonomyEnabled(enabled)
+                                        autonomyEnabled = enabled
+                                        if (!enabled) {
+                                            stopService(
+                                                Intent(
+                                                    this@MainActivity,
+                                                    BackgroundAgentService::class.java
+                                                )
+                                            )
+                                            messages = messages +
+                                                "Agent: Background autonomy disabled and service stopped."
+                                        } else {
+                                            messages = messages +
+                                                "Agent: Background autonomy enabled. Authorized tasks still require their own approval."
+                                        }
+                                        auditVersion++
+                                    }
+                                )
+                            }
+
+                            if (auditEvents.isEmpty()) {
+                                Text(
+                                    "No audit events yet.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            } else {
+                                auditEvents.forEach { event ->
+                                    Text(
+                                        event.timestamp + " • " +
+                                            event.action + " • " +
+                                            event.decision +
+                                            (if (event.detail.isBlank()) "" else " • " + event.detail),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                OutlinedButton(onClick = {
+                                    AgentContainer.auditLog.clear()
+                                    auditVersion++
+                                    messages = messages + "Agent: Local audit history cleared."
+                                }) {
+                                    Text("Clear audit history")
+                                }
+                            }
+                        }
+                    }
 
                     if (notificationEnabled) {
                         Card(Modifier.fillMaxWidth()) {
@@ -189,6 +269,7 @@ class MainActivity : ComponentActivity() {
                                     version++
                                     messages = messages + "You: " + command +
                                         "\nAgent: " + if (result.dueAt != null) "Reminder scheduled locally." else "Added to attention."
+                                    auditVersion++
                                 }
 
                                 is CommandResult.BackgroundTask -> {
@@ -196,6 +277,7 @@ class MainActivity : ComponentActivity() {
                                     messages = messages + "You: " + command +
                                         "\nAgent: Background task prepared. Review and authorize it below."
                                     version++
+                                    auditVersion++
                                 }
 
                                 is CommandResult.Action -> {
@@ -207,6 +289,7 @@ class MainActivity : ComponentActivity() {
                                         messages = messages + "Agent: Approval required for " +
                                             result.request.type.name.lowercase() + "."
                                     }
+                                    auditVersion++
                                 }
 
                                 is CommandResult.Unknown ->
@@ -228,7 +311,9 @@ class MainActivity : ComponentActivity() {
                         }) { Text("Screen") }
 
                         OutlinedButton(onClick = {
-                            if (taskStore.active().any { it.approvedForBackground }) {
+                            if (!autonomyEnabled) {
+                                messages = messages + "Agent: Enable Background autonomy first."
+                            } else if (taskStore.active().any { it.approvedForBackground }) {
                                 val serviceIntent = Intent(this@MainActivity, BackgroundAgentService::class.java)
                                 ContextCompat.startForegroundService(this@MainActivity, serviceIntent)
                                 messages = messages + "Agent: Background engine started for authorized tasks."
@@ -239,8 +324,12 @@ class MainActivity : ComponentActivity() {
 
                         Button(onClick = {
                             AgentContainer.securityKernel.emergencyStop()
+                            stopService(
+                                Intent(this@MainActivity, BackgroundAgentService::class.java)
+                            )
                             stopped = true
                             messages = messages + "Agent: Emergency STOP persisted. Background work is blocked until reset."
+                            auditVersion++
                         }) { Text("STOP") }
                     }
 
@@ -264,6 +353,8 @@ class MainActivity : ComponentActivity() {
                                     Button(onClick = {
                                         if (AgentContainer.securityKernel.isStopped()) {
                                             messages = messages + "Agent: Reset STOP before authorizing new background work."
+                                        } else if (!autonomyEnabled) {
+                                            messages = messages + "Agent: Enable Background autonomy before authorizing background work."
                                         } else {
                                             val authorized = taskStore.authorizeBackground(task.id)
                                             if (authorized != null) {
@@ -280,6 +371,7 @@ class MainActivity : ComponentActivity() {
                                                 }
                                                 messages = messages + "Agent: Background authorization granted for " + task.title
                                                 version++
+                                                auditVersion++
                                             }
                                         }
                                     }) { Text("Authorize background") }
@@ -301,6 +393,7 @@ class MainActivity : ComponentActivity() {
                                                 prepared
                                             )
                                         }
+                                        auditVersion++
                                     }) { Text("Approve current step") }
                                 }
                             }
@@ -312,6 +405,7 @@ class MainActivity : ComponentActivity() {
                             AgentContainer.securityKernel.resetAfterExplicitUserAction()
                             stopped = false
                             messages = messages + "Agent: Emergency stop reset by explicit user action."
+                            auditVersion++
                         }) { Text("Reset STOP") }
                     }
 
@@ -342,6 +436,7 @@ class MainActivity : ComponentActivity() {
                                 messages = messages + "Agent: " + (result?.message ?: "Approval expired.")
                             }
                             pending = null
+                            auditVersion++
                         }) { Text("Approve") }
                     },
                     dismissButton = {
@@ -349,6 +444,7 @@ class MainActivity : ComponentActivity() {
                             runtime.reject(action.id)
                             messages = messages + "Agent: Action rejected."
                             pending = null
+                            auditVersion++
                         }) { Text("Reject") }
                     }
                 )
@@ -393,6 +489,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             pendingTaskApproval = null
+                            auditVersion++
                         }) { Text("Approve") }
                     },
                     dismissButton = {
@@ -400,6 +497,7 @@ class MainActivity : ComponentActivity() {
                             runtime.reject(approval.pending.id)
                             messages = messages + "Agent: Background step rejected; task remains paused."
                             pendingTaskApproval = null
+                            auditVersion++
                         }) { Text("Reject") }
                     }
                 )
