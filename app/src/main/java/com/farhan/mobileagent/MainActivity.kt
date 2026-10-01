@@ -548,6 +548,12 @@ class MainActivity : ComponentActivity() {
                                 is CommandResult.Answer ->
                                     messages = messages + "You: " + command + "\nAgent: " + result.text
 
+                                CommandResult.OpenMusic -> {
+                                    startActivity(Intent(this@MainActivity, MusicActivity::class.java))
+                                    messages = messages + "Agent: Opening local music."
+                                    auditVersion++
+                                }
+
                                 is CommandResult.AddNote -> {
                                     val note = noteStore.add(result.content)
                                     messages = messages + "You: " + command +
