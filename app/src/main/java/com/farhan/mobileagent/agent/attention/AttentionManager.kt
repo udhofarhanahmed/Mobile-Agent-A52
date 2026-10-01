@@ -33,6 +33,13 @@ class AttentionManager(context: Context? = null) {
         save()
     }
 
+    @Synchronized
+    fun upsert(item: AttentionItem) {
+        val index = items.indexOfFirst { it.id == item.id }
+        if (index >= 0) items[index] = item else items += item
+        save()
+    }
+
     fun all(): List<AttentionItem> = items.sortedWith(
         compareByDescending<AttentionItem> { it.priority }
             .thenBy { it.dueAt ?: Long.MAX_VALUE }
