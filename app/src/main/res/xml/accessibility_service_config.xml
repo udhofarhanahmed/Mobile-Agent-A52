@@ -2,5 +2,6 @@
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewClicked|typeViewFocused"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:canRetrieveWindowContent="true"
+    android:canPerformGestures="true"
     android:notificationTimeout="100"
     android:description="@string/accessibility_description" />
