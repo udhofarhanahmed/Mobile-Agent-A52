@@ -5,11 +5,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.app.ActivityCompat
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,8 +26,6 @@ import com.farhan.mobileagent.agent.core.AgentContainer
 import com.farhan.mobileagent.agent.core.AgentRuntime
 import com.farhan.mobileagent.agent.core.PendingAction
 import com.farhan.mobileagent.agent.device.DeviceStateProvider
-import com.farhan.mobileagent.agent.notification.NotificationInbox
-import com.farhan.mobileagent.agent.notification.NotificationListenerState
 import com.farhan.mobileagent.agent.task.BackgroundAgentService
 import com.farhan.mobileagent.agent.task.TaskRunner
 import com.farhan.mobileagent.agent.task.TaskState
@@ -49,7 +45,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var reminderScheduler: ReminderScheduler
     private lateinit var taskStore: TaskStore
     private lateinit var taskRunner: TaskRunner
-    private lateinit var notificationInbox: NotificationInbox
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,17 +54,16 @@ class MainActivity : ComponentActivity() {
         deviceProvider = DeviceStateProvider(this)
         reminderScheduler = ReminderScheduler(applicationContext)
         taskStore = TaskStore(applicationContext)
-        taskRunner = TaskRunner(taskStore, runtime = AgentRuntime(
-            AgentContainer.securityKernel,
-            AgentContainer.confirmationManager,
-            AgentContainer.auditLog
-        ), kernel = AgentContainer.securityKernel)
         runtime = AgentRuntime(
             AgentContainer.securityKernel,
             AgentContainer.confirmationManager,
             AgentContainer.auditLog
         )
-        notificationInbox = NotificationInbox(applicationContext)
+        taskRunner = TaskRunner(
+            taskStore,
+            runtime,
+            AgentContainer.securityKernel
+        )
 
         setContent {
             var input by remember { mutableStateOf("") }
@@ -78,10 +72,6 @@ class MainActivity : ComponentActivity() {
             var pending by remember { mutableStateOf<PendingAction?>(null) }
             var pendingTaskApproval by remember { mutableStateOf<PendingTaskApproval?>(null) }
             var version by remember { mutableIntStateOf(0) }
-
-            val notificationEnabled = NotificationManagerCompat
-                .getEnabledListenerPackages(this@MainActivity)
-                .contains(packageName)
 
             MaterialTheme {
                 Column(
@@ -96,12 +86,6 @@ class MainActivity : ComponentActivity() {
                             if (AgentAccessibilityService.instance() != null) "Accessibility connected"
                             else "Accessibility not connected"
                     )
-                    Text(
-                        "Notifications • " +
-                            if (notificationEnabled && NotificationListenerState.connected) "awareness connected"
-                            else if (notificationEnabled) "access enabled, service reconnecting"
-                            else "awareness disabled"
-                    )
                     Text("Background tasks: " + taskStore.active().size)
 
                     LazyColumn(
@@ -109,38 +93,6 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(messages) { message -> Text(message) }
-                    }
-
-                    if (notificationEnabled) {
-                        Card(Modifier.fillMaxWidth()) {
-                            Column(
-                                Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text("Recent notification awareness", style = MaterialTheme.typography.titleMedium)
-                                notificationInbox.latest().take(5).forEach { item ->
-                                    Text(
-                                        item.appLabel +
-                                            " • " +
-                                            item.category.orEmpty().ifBlank { "notification" }
-                                    )
-                                }
-                                OutlinedButton(onClick = {
-                                    notificationInbox.clear()
-                                    version++
-                                    messages = messages + "Agent: Local notification-awareness history cleared."
-                                }) { Text("Clear local notification history") }
-                            }
-                        }
-                    }
-
-                    OutlinedButton(onClick = {
-                        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                    }) {
-                        Text(
-                            if (notificationEnabled) "Notification access settings"
-                            else "Enable notification awareness"
-                        )
                     }
 
                     OutlinedTextField(
