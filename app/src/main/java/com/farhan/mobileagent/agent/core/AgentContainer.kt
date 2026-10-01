@@ -16,7 +16,6 @@ object AgentContainer {
 
     fun initialize(context: android.content.Context) {
         securityKernel.initialize(context.applicationContext)
-        auditLog.initialize(context.applicationContext)
         if (!::attentionManager.isInitialized) {
             attentionManager = AttentionManager(context.applicationContext)
         }

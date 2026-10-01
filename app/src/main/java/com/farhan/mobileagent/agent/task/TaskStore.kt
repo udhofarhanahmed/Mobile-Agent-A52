@@ -7,6 +7,7 @@ import com.farhan.mobileagent.agent.model.TargetSpec
 import com.farhan.mobileagent.agent.storage.LocalMemory
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.UUID
 
 class TaskStore(context: Context) {
     private val memory = LocalMemory(context.applicationContext)
@@ -46,6 +47,7 @@ class TaskStore(context: Context) {
         put("id", t.id); put("title", t.title); put("createdAt", t.createdAt)
         put("deadlineAt", t.deadlineAt ?: JSONObject.NULL); put("state", t.state.name)
         put("currentStep", t.currentStep); put("attempts", t.attempts)
+        put("actionsExecuted", t.actionsExecuted); put("maxActions", t.maxActions)
         put("approvedForBackground", t.approvedForBackground)
         put("lastError", t.lastError ?: JSONObject.NULL)
         put("steps", JSONArray().apply { t.steps.forEach { s ->
@@ -75,15 +77,11 @@ class TaskStore(context: Context) {
                 val targetId = nullableString(s, "targetId")
                 val targetDesc = nullableString(s, "targetDesc")
                 val target = if (targetText != null || targetId != null || targetDesc != null) {
-                    TargetSpec(
-                        text = targetText,
-                        resourceId = targetId,
-                        contentDescription = targetDesc
-                    )
+                    TargetSpec(text = targetText, resourceId = targetId, contentDescription = targetDesc)
                 } else null
 
                 add(TaskStep(
-                    id = nullableString(s, "id") ?: java.util.UUID.randomUUID().toString(),
+                    id = nullableString(s, "id") ?: UUID.randomUUID().toString(),
                     action = ActionRequest(
                         type = type,
                         packageName = nullableString(s, "package"),
@@ -99,7 +97,7 @@ class TaskStore(context: Context) {
             }
         }
         return AgentTask(
-            id = nullableString(o, "id") ?: java.util.UUID.randomUUID().toString(),
+            id = nullableString(o, "id") ?: UUID.randomUUID().toString(),
             title = o.optString("title"),
             steps = steps,
             createdAt = o.optLong("createdAt"),
@@ -107,6 +105,8 @@ class TaskStore(context: Context) {
             state = runCatching { TaskState.valueOf(o.optString("state")) }.getOrDefault(TaskState.QUEUED),
             currentStep = o.optInt("currentStep").coerceIn(0, steps.size),
             attempts = o.optInt("attempts").coerceAtLeast(0),
+            actionsExecuted = o.optInt("actionsExecuted", 0).coerceAtLeast(0),
+            maxActions = o.optInt("maxActions", 30).coerceIn(1, 100),
             approvedForBackground = o.optBoolean("approvedForBackground", false),
             lastError = nullableString(o, "lastError")
         )

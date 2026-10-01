@@ -25,6 +25,18 @@ object BackgroundActionPolicy {
     }
 }
 
+object TaskBudgetPolicy {
+    const val MAX_LIFETIME_MS = 24L * 60L * 60L * 1000L
+
+    fun exceeded(task: AgentTask, now: Long = System.currentTimeMillis()): String? =
+        when {
+            now < task.createdAt -> "Invalid task clock state"
+            now - task.createdAt > MAX_LIFETIME_MS -> "Maximum task lifetime exceeded"
+            task.actionsExecuted >= task.maxActions -> "Maximum action budget exceeded"
+            else -> null
+        }
+}
+
 class TaskRunner(
     private val store: TaskStore,
     private val runtime: AgentRuntime,
@@ -33,6 +45,11 @@ class TaskRunner(
     fun tick(): String {
         if (kernel.isStopped()) return "STOPPED"
         val task = store.active().firstOrNull { it.approvedForBackground } ?: return "IDLE"
+
+        TaskBudgetPolicy.exceeded(task)?.let { reason ->
+            store.upsert(task.copy(state = TaskState.FAILED, lastError = reason))
+            return "FAILED"
+        }
 
         if (task.deadlineAt != null && System.currentTimeMillis() > task.deadlineAt) {
             store.upsert(task.copy(state = TaskState.FAILED, lastError = "Deadline exceeded"))
@@ -58,17 +75,15 @@ class TaskRunner(
                 return "PAUSED"
             }
 
-        val autonomousRequest = step.action.copy(
-            requiresConfirmation = false,
-            confirmed = true
-        )
+        val nextActionCount = task.actionsExecuted + 1
+        val autonomousRequest = step.action.copy(requiresConfirmation = false, confirmed = true)
         val result = service.executeApproved(autonomousRequest)
         if (!result.success) {
-            return handleFailure(task, result.message)
+            return handleFailure(task, nextActionCount, result.message)
         }
 
         if (!verifyStep(step)) {
-            return handleFailure(task, "Post-action verification failed")
+            return handleFailure(task, nextActionCount, "Post-action verification failed")
         }
 
         val next = task.currentStep + 1
@@ -77,20 +92,31 @@ class TaskRunner(
                 state = if (next >= task.steps.size) TaskState.COMPLETED else TaskState.RUNNING,
                 currentStep = next,
                 attempts = 0,
+                actionsExecuted = nextActionCount,
                 lastError = null
             )
         )
         return if (next >= task.steps.size) "COMPLETED" else "STEP_OK"
     }
 
-    private fun handleFailure(task: AgentTask, message: String): String {
+    private fun handleFailure(task: AgentTask, actionCount: Int, message: String): String {
         val attempts = task.attempts + 1
         val max = task.steps.getOrNull(task.currentStep)?.maxAttempts ?: 1
         return if (attempts >= max) {
-            store.upsert(task.copy(state = TaskState.FAILED, attempts = attempts, lastError = message))
+            store.upsert(task.copy(
+                state = TaskState.FAILED,
+                attempts = attempts,
+                actionsExecuted = actionCount,
+                lastError = message
+            ))
             "FAILED"
         } else {
-            store.upsert(task.copy(state = TaskState.RUNNING, attempts = attempts, lastError = message))
+            store.upsert(task.copy(
+                state = TaskState.RUNNING,
+                attempts = attempts,
+                actionsExecuted = actionCount,
+                lastError = message
+            ))
             "RETRYING"
         }
     }
@@ -124,6 +150,16 @@ class TaskRunner(
         val step = task.steps.getOrNull(task.currentStep) ?: return false
         if (step.id != stepId) return false
 
+        val actionCount = task.actionsExecuted + 1
+        if (actionCount > task.maxActions) {
+            store.upsert(task.copy(
+                state = TaskState.FAILED,
+                actionsExecuted = actionCount,
+                lastError = "Maximum action budget exceeded"
+            ))
+            return true
+        }
+
         if (result.success) {
             val next = task.currentStep + 1
             store.upsert(
@@ -131,6 +167,7 @@ class TaskRunner(
                     state = if (next >= task.steps.size) TaskState.COMPLETED else TaskState.RUNNING,
                     currentStep = next,
                     attempts = 0,
+                    actionsExecuted = actionCount,
                     lastError = null
                 )
             )
@@ -140,12 +177,14 @@ class TaskRunner(
                 store.upsert(task.copy(
                     state = TaskState.FAILED,
                     attempts = attempts,
+                    actionsExecuted = actionCount,
                     lastError = result.message
                 ))
             } else {
                 store.upsert(task.copy(
                     state = TaskState.WAITING_FOR_USER,
                     attempts = attempts,
+                    actionsExecuted = actionCount,
                     lastError = result.message
                 ))
             }

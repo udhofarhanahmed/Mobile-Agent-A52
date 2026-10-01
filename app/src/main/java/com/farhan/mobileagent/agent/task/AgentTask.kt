@@ -22,6 +22,8 @@ data class AgentTask(
     val state: TaskState = TaskState.QUEUED,
     val currentStep: Int = 0,
     val attempts: Int = 0,
+    val actionsExecuted: Int = 0,
+    val maxActions: Int = 30,
     val approvedForBackground: Boolean = false,
     val lastError: String? = null
 )
