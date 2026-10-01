@@ -11,6 +11,7 @@ sealed interface CommandResult {
     data class Answer(val text: String) : CommandResult
     data class Action(val request: ActionRequest) : CommandResult
     data class AddAttention(val title: String, val priority: Int = 60, val dueAt: Long? = null) : CommandResult
+    data class AddNote(val content: String) : CommandResult
     data class BackgroundTask(val task: AgentTask) : CommandResult
     data class Unknown(val text: String) : CommandResult
 }
@@ -94,6 +95,14 @@ class LocalCommandRouter {
                     target = TargetSpec(text = input.substringAfter("tap ").trim()),
                     reason = "User requested a visible target"
                 ))
+            q.startsWith("note ") ->
+                CommandResult.AddNote(input.substringAfter("note ").trim())
+            q.startsWith("add note ") ->
+                CommandResult.AddNote(input.substringAfter("add note ").trim())
+            q.startsWith("write note ") ->
+                CommandResult.AddNote(input.substringAfter("write note ").trim())
+            q.startsWith("make a note ") ->
+                CommandResult.AddNote(input.substringAfter("make a note ").trim())
             q.startsWith("remember ") ->
                 CommandResult.AddAttention(input.substringAfter("remember ").trim(), 60)
             q.contains("battery") && device != null ->
