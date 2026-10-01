@@ -44,6 +44,8 @@ class RuleBasedOfflinePlanner(
                 PlannerProposal(answer = "The local music player can be opened.", confidence = 1f)
             is CommandResult.OpenCall ->
                 PlannerProposal(answer = "The protected call flow can prepare " + result.target + ".", confidence = 1f)
+            CommandResult.OpenFileLab ->
+                PlannerProposal(answer = "The local File Lab can analyze supported files on the device.", confidence = 1f)
             is CommandResult.Unknown ->
                 PlannerProposal(answer = result.text, confidence = 0f)
         }
