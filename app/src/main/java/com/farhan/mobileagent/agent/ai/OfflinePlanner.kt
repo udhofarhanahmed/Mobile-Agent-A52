@@ -42,6 +42,8 @@ class RuleBasedOfflinePlanner(
                 PlannerProposal(answer = "Local note can be saved.", confidence = 1f)
             CommandResult.OpenMusic ->
                 PlannerProposal(answer = "The local music player can be opened.", confidence = 1f)
+            is CommandResult.OpenCall ->
+                PlannerProposal(answer = "The protected call flow can prepare " + result.target + ".", confidence = 1f)
             is CommandResult.Unknown ->
                 PlannerProposal(answer = result.text, confidence = 0f)
         }
