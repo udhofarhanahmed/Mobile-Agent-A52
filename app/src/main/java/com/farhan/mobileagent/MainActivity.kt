@@ -53,6 +53,8 @@ private data class PendingTaskApproval(
 )
 
 class MainActivity : ComponentActivity() {
+    private var voiceTranscript by mutableStateOf<String?>(null)
+
     private lateinit var runtime: AgentRuntime
     private lateinit var attention: com.farhan.mobileagent.agent.attention.AttentionManager
     private val router = LocalCommandRouter()
@@ -93,6 +95,14 @@ class MainActivity : ComponentActivity() {
             var pendingTaskApproval by remember { mutableStateOf<PendingTaskApproval?>(null) }
             var version by remember { mutableIntStateOf(0) }
             var auditVersion by remember { mutableIntStateOf(0) }
+
+            LaunchedEffect(voiceTranscript) {
+                voiceTranscript?.let { spoken ->
+                    input = spoken
+                    messages = messages + "You (voice): " + spoken
+                    voiceTranscript = null
+                }
+            }
 
             val notificationEnabled = NotificationManagerCompat
                 .getEnabledListenerPackages(this@MainActivity)
@@ -529,6 +539,13 @@ class MainActivity : ComponentActivity() {
                         }) { Text("Send") }
 
                         OutlinedButton(onClick = {
+                            startActivityForResult(
+                                Intent(this@MainActivity, VoiceActivity::class.java),
+                                VOICE_REQUEST
+                            )
+                        }) { Text("🎙 Voice") }
+
+                        OutlinedButton(onClick = {
                             val screen = ScreenStateStore.get()
                             messages = messages + "Agent: " +
                                 if (screen.packageName == null) {
@@ -732,6 +749,18 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    @Deprecated("Activity result API retained for compatibility with the current local-first shell.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == VOICE_REQUEST && resultCode == RESULT_OK) {
+            voiceTranscript = data?.getStringExtra(VoiceActivity.EXTRA_TRANSCRIPT)
+        }
+    }
+
+    companion object {
+        private const val VOICE_REQUEST = 7101
     }
 }
 
