@@ -19,6 +19,6 @@ class NoteCommandTest {
     @Test fun naturalNoteCommandCreatesNoteResult() {
         val result = router.route("make a note call Ali tomorrow")
         assertTrue(result is CommandResult.AddNote)
-        assertEquals("call ali tomorrow", (result as CommandResult.AddNote).content)
+        assertEquals("call Ali tomorrow", (result as CommandResult.AddNote).content)
     }
 }
