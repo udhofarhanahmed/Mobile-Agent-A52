@@ -12,6 +12,7 @@ sealed interface CommandResult {
     data class Action(val request: ActionRequest) : CommandResult
     data class AddAttention(val title: String, val priority: Int = 60, val dueAt: Long? = null) : CommandResult
     data class AddNote(val content: String) : CommandResult
+    data object OpenMusic : CommandResult
     data class BackgroundTask(val task: AgentTask) : CommandResult
     data class Unknown(val text: String) : CommandResult
 }
@@ -87,6 +88,8 @@ class LocalCommandRouter {
                 CommandResult.Action(ActionRequest(ActionType.VOLUME_UP, reason = "User requested volume increase"))
             q == "volume down" || q == "decrease volume" ->
                 CommandResult.Action(ActionRequest(ActionType.VOLUME_DOWN, reason = "User requested volume decrease"))
+            q == "play music" || q == "music" || q == "open music" || q == "play a song" ->
+                CommandResult.OpenMusic
             q == "mute" || q == "mute phone" ->
                 CommandResult.Action(ActionRequest(ActionType.MUTE, reason = "User requested mute"))
             q.startsWith("tap ") ->
