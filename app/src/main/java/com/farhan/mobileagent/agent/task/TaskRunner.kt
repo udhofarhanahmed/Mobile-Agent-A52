@@ -44,6 +44,7 @@ class TaskRunner(
 ) {
     fun tick(): String {
         if (kernel.isStopped()) return "STOPPED"
+        if (!kernel.isBackgroundAutonomyEnabled()) return "AUTONOMY_DISABLED"
 
         val approvedTasks = store.active().filter { it.approvedForBackground }
         if (approvedTasks.isEmpty()) return "IDLE"
