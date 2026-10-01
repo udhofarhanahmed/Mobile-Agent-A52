@@ -24,8 +24,15 @@ class ConfirmationManager {
     fun levelFor(request: ActionRequest): ConfirmationLevel =
         when (request.type) {
             ActionType.TYPE_TEXT -> ConfirmationLevel.ALWAYS
-            ActionType.TAP, ActionType.SWIPE,
-            ActionType.BACK, ActionType.HOME, ActionType.RECENTS -> ConfirmationLevel.SENSITIVE
+            ActionType.TAP,
+            ActionType.SWIPE,
+            ActionType.BACK,
+            ActionType.HOME,
+            ActionType.RECENTS,
+            ActionType.OPEN_SETTINGS,
+            ActionType.VOLUME_UP,
+            ActionType.VOLUME_DOWN,
+            ActionType.MUTE -> ConfirmationLevel.SENSITIVE
             ActionType.OBSERVE -> ConfirmationLevel.NONE
         }
 }
