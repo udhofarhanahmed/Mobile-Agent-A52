@@ -23,17 +23,31 @@ class LocalCommandRouter {
         val appPackage = appPackageFor(q.removePrefix("open app ").removePrefix("open ").trim())
 
         if (q.startsWith("background ")) {
-            val inner = route(background, device)
-            if (inner is CommandResult.Action) {
+            val commands = background
+                .split(Regex("\\s+(?:and then|then)\\s+"))
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+
+            if (commands.isEmpty()) {
+                return CommandResult.Unknown("I need at least one concrete background action.")
+            }
+
+            val results = commands.map { route(it, device) }
+            if (results.all { it is CommandResult.Action }) {
+                val steps = results.map { result ->
+                    taskStepFor((result as CommandResult.Action).request)
+                }
                 return CommandResult.BackgroundTask(
                     AgentTask(
                         title = background,
-                        steps = listOf(TaskStep(action = inner.request)),
+                        steps = steps,
                         approvedForBackground = false
                     )
                 )
             }
-            return CommandResult.Unknown("I can background supported device actions, but I need a concrete action.")
+            return CommandResult.Unknown(
+                "I can background supported device actions, but every step must be a concrete supported action."
+            )
         }
 
         return when {
@@ -95,6 +109,12 @@ class LocalCommandRouter {
                 CommandResult.Unknown("I do not have a safe built-in command for that yet.")
         }
     }
+
+    private fun taskStepFor(request: ActionRequest): TaskStep =
+        TaskStep(
+            action = request,
+            verifyPackage = request.packageName.takeIf { request.type == ActionType.OPEN_APP }
+        )
 
     private fun appPackageFor(name: String): String? = when (name) {
         "chrome", "google chrome" -> "com.android.chrome"

@@ -22,13 +22,13 @@ class TaskStore(context: Context) {
     @Synchronized
     fun get(id: String): AgentTask? = all().firstOrNull { it.id == id }
 
-    fun all(): List<AgentTask> {
-        val raw = memory.get(key) ?: return emptyList()
+    fun all(): List<AgentTask> = runCatching {
+        val raw = memory.get(key) ?: return@runCatching emptyList()
         val array = JSONArray(raw)
-        return buildList {
+        buildList {
             for (i in 0 until array.length()) add(decode(array.getJSONObject(i)))
         }.sortedBy { it.createdAt }
-    }
+    }.getOrElse { emptyList() }
 
     fun active(): List<AgentTask> =
         all().filter { it.state == TaskState.QUEUED || it.state == TaskState.RUNNING || it.state == TaskState.PAUSED }
@@ -70,37 +70,49 @@ class TaskStore(context: Context) {
                 val s = a.getJSONObject(i)
                 val type = runCatching { ActionType.valueOf(s.getString("type")) }
                     .getOrDefault(ActionType.OBSERVE)
+
+                val targetText = nullableString(s, "targetText")
+                val targetId = nullableString(s, "targetId")
+                val targetDesc = nullableString(s, "targetDesc")
+                val target = if (targetText != null || targetId != null || targetDesc != null) {
+                    TargetSpec(
+                        text = targetText,
+                        resourceId = targetId,
+                        contentDescription = targetDesc
+                    )
+                } else null
+
                 add(TaskStep(
-                    id = s.optString("id"),
+                    id = nullableString(s, "id") ?: java.util.UUID.randomUUID().toString(),
                     action = ActionRequest(
                         type = type,
-                        packageName = s.optString("package").takeIf { it.isNotBlank() },
-                        text = s.optString("text").takeIf { it.isNotBlank() },
-                        target = TargetSpec(
-                            text = s.optString("targetText").takeIf { it.isNotBlank() },
-                            resourceId = s.optString("targetId").takeIf { it.isNotBlank() },
-                            contentDescription = s.optString("targetDesc").takeIf { it.isNotBlank() }
-                        ),
+                        packageName = nullableString(s, "package"),
+                        text = nullableString(s, "text"),
+                        target = target,
                         reason = s.optString("reason"),
                         requiresConfirmation = true
                     ),
-                    verifyPackage = s.optString("verifyPackage").takeIf { it.isNotBlank() },
-                    verifyText = s.optString("verifyText").takeIf { it.isNotBlank() },
-                    maxAttempts = s.optInt("maxAttempts", 2)
+                    verifyPackage = nullableString(s, "verifyPackage"),
+                    verifyText = nullableString(s, "verifyText"),
+                    maxAttempts = s.optInt("maxAttempts", 2).coerceIn(1, 5)
                 ))
             }
         }
         return AgentTask(
-            id = o.optString("id"),
+            id = nullableString(o, "id") ?: java.util.UUID.randomUUID().toString(),
             title = o.optString("title"),
             steps = steps,
             createdAt = o.optLong("createdAt"),
             deadlineAt = if (o.isNull("deadlineAt")) null else o.optLong("deadlineAt"),
             state = runCatching { TaskState.valueOf(o.optString("state")) }.getOrDefault(TaskState.QUEUED),
-            currentStep = o.optInt("currentStep"),
-            attempts = o.optInt("attempts"),
+            currentStep = o.optInt("currentStep").coerceIn(0, steps.size),
+            attempts = o.optInt("attempts").coerceAtLeast(0),
             approvedForBackground = o.optBoolean("approvedForBackground", false),
-            lastError = o.optString("lastError").takeIf { it.isNotBlank() }
+            lastError = nullableString(o, "lastError")
         )
     }
+
+    private fun nullableString(o: JSONObject, key: String): String? =
+        if (o.isNull(key)) null
+        else o.optString(key).takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
 }

@@ -1,9 +1,9 @@
 package com.farhan.mobileagent.agent.task
 
+import android.os.SystemClock
 import com.farhan.mobileagent.agent.accessibility.AgentAccessibilityService
 import com.farhan.mobileagent.agent.accessibility.ScreenStateStore
 import com.farhan.mobileagent.agent.core.AgentRuntime
-import com.farhan.mobileagent.agent.model.ActionRequest
 import com.farhan.mobileagent.agent.model.ActionResult
 import com.farhan.mobileagent.agent.model.ActionType
 import com.farhan.mobileagent.agent.security.SecurityKernel
@@ -45,7 +45,10 @@ class TaskRunner(
 
         val step = task.steps[task.currentStep]
         if (!BackgroundActionPolicy.mayRunUnattended(step.action.type)) {
-            store.upsert(task.copy(state = TaskState.WAITING_FOR_USER, lastError = "Sensitive step requires approval"))
+            store.upsert(task.copy(
+                state = TaskState.WAITING_FOR_USER,
+                lastError = "Sensitive step requires approval"
+            ))
             return "WAITING_FOR_USER"
         }
 
@@ -64,8 +67,7 @@ class TaskRunner(
             return handleFailure(task, result.message)
         }
 
-        val verified = verifyStep(step)
-        if (!verified) {
+        if (!verifyStep(step)) {
             return handleFailure(task, "Post-action verification failed")
         }
 
@@ -94,37 +96,60 @@ class TaskRunner(
     }
 
     private fun verifyStep(step: TaskStep): Boolean {
-        val screen = ScreenStateStore.get()
-        val packageOk = step.verifyPackage == null || screen.packageName == step.verifyPackage
-        val textOk = step.verifyText == null ||
-            screen.visibleText.any { it.contains(step.verifyText, ignoreCase = true) }
-        return packageOk && textOk
-    }
+        if (step.verifyPackage == null && step.verifyText == null) return true
+        val deadline = SystemClock.elapsedRealtime() + 1_500L
 
-    fun resumeApproved(
-        taskId: String,
-        stepId: String,
-        request: ActionRequest
-    ): ActionResult? {
-        val task = store.get(taskId) ?: return null
-        val result = AgentAccessibilityService.instance()?.executeApproved(request) ?: return null
-        if (result.success) {
-            val next = task.currentStep + 1
-            store.upsert(task.copy(
-                state = if (next >= task.steps.size) TaskState.COMPLETED else TaskState.RUNNING,
-                currentStep = next,
-                attempts = 0,
-                lastError = null
-            ))
-        } else {
-            val attempts = task.attempts + 1
-            val step = task.steps[task.currentStep]
-            if (attempts >= step.maxAttempts) {
-                store.upsert(task.copy(state = TaskState.FAILED, attempts = attempts, lastError = result.message))
-            } else {
-                store.upsert(task.copy(state = TaskState.RUNNING, attempts = attempts, lastError = result.message))
+        while (SystemClock.elapsedRealtime() < deadline) {
+            val screen = ScreenStateStore.get()
+            val packageOk = step.verifyPackage == null || screen.packageName == step.verifyPackage
+            val textOk = step.verifyText == null ||
+                screen.visibleText.any { it.contains(step.verifyText, ignoreCase = true) }
+            if (packageOk && textOk) return true
+            try {
+                Thread.sleep(100L)
+            } catch (_: InterruptedException) {
+                return false
             }
         }
-        return result
+        return false
+    }
+
+    fun recordUserApprovedStep(
+        taskId: String,
+        stepId: String,
+        result: ActionResult
+    ): Boolean {
+        val task = store.get(taskId) ?: return false
+        if (task.state != TaskState.WAITING_FOR_USER) return false
+        val step = task.steps.getOrNull(task.currentStep) ?: return false
+        if (step.id != stepId) return false
+
+        if (result.success) {
+            val next = task.currentStep + 1
+            store.upsert(
+                task.copy(
+                    state = if (next >= task.steps.size) TaskState.COMPLETED else TaskState.RUNNING,
+                    currentStep = next,
+                    attempts = 0,
+                    lastError = null
+                )
+            )
+        } else {
+            val attempts = task.attempts + 1
+            if (attempts >= step.maxAttempts) {
+                store.upsert(task.copy(
+                    state = TaskState.FAILED,
+                    attempts = attempts,
+                    lastError = result.message
+                ))
+            } else {
+                store.upsert(task.copy(
+                    state = TaskState.WAITING_FOR_USER,
+                    attempts = attempts,
+                    lastError = result.message
+                ))
+            }
+        }
+        return true
     }
 }

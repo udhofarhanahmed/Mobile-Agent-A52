@@ -11,20 +11,26 @@ import com.farhan.mobileagent.agent.core.AgentRuntime
 
 class BackgroundAgentService : Service() {
     private val channelId = "agent_background"
-    private var running = true
+    @Volatile private var running = false
+    private var worker: Thread? = null
 
     override fun onCreate() {
         super.onCreate()
         AgentContainer.initialize(applicationContext)
         createChannel()
+
         val notification = Notification.Builder(this, channelId)
             .setContentTitle("Mobile Agent")
             .setContentText("Working locally in the background")
             .setSmallIcon(android.R.drawable.ic_popup_sync)
             .setOngoing(true)
+            .setCategory(Notification.CATEGORY_SERVICE)
             .build()
+
         startForeground(1001, notification)
-        Thread {
+
+        running = true
+        worker = Thread {
             val runner = TaskRunner(
                 TaskStore(applicationContext),
                 AgentRuntime(
@@ -34,15 +40,25 @@ class BackgroundAgentService : Service() {
                 ),
                 AgentContainer.securityKernel
             )
-            while (running) {
-                runner.tick()
-                Thread.sleep(3000L)
+
+            while (running && !Thread.currentThread().isInterrupted) {
+                runCatching { runner.tick() }
+                try {
+                    Thread.sleep(3000L)
+                } catch (_: InterruptedException) {
+                    break
+                }
             }
-        }.start()
+        }.also { it.start() }
     }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
         running = false
+        worker?.interrupt()
+        worker = null
+        stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
 

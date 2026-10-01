@@ -15,6 +15,7 @@ object AgentContainer {
         private set
 
     fun initialize(context: android.content.Context) {
+        securityKernel.initialize(context.applicationContext)
         if (!::attentionManager.isInitialized) {
             attentionManager = AttentionManager(context.applicationContext)
         }

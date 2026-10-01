@@ -3,6 +3,7 @@ package com.farhan.mobileagent.agent.command
 import com.farhan.mobileagent.agent.device.DeviceState
 import com.farhan.mobileagent.agent.model.ActionType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,5 +51,16 @@ class LocalCommandRouterTest {
         val result = router.route("battery", DeviceState(42, false, true))
         assertTrue(result is CommandResult.Answer)
         assertTrue((result as CommandResult.Answer).text.contains("42%"))
+    }
+
+    @Test fun backgroundPlanSupportsMultipleSteps() {
+        val result = router.route("background open chrome then go home")
+        assertTrue(result is CommandResult.BackgroundTask)
+        val task = (result as CommandResult.BackgroundTask).task
+        assertEquals(2, task.steps.size)
+        assertEquals(ActionType.OPEN_APP, task.steps[0].action.type)
+        assertEquals("com.android.chrome", task.steps[0].verifyPackage)
+        assertEquals(ActionType.HOME, task.steps[1].action.type)
+        assertFalse(task.approvedForBackground)
     }
 }

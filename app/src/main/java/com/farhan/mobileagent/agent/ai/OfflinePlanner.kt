@@ -5,10 +5,12 @@ import com.farhan.mobileagent.agent.command.LocalCommandRouter
 import com.farhan.mobileagent.agent.device.DeviceState
 import com.farhan.mobileagent.agent.model.ActionRequest
 import com.farhan.mobileagent.agent.model.ActionType
+import com.farhan.mobileagent.agent.task.AgentTask
 
 data class PlannerProposal(
     val answer: String? = null,
     val action: ActionRequest? = null,
+    val task: AgentTask? = null,
     val confidence: Float = 0f
 )
 
@@ -33,6 +35,7 @@ class RuleBasedOfflinePlanner(
             is CommandResult.BackgroundTask ->
                 PlannerProposal(
                     answer = "Background task planned: " + result.task.title,
+                    task = result.task,
                     confidence = 1f
                 )
             is CommandResult.Unknown ->
@@ -43,16 +46,26 @@ class RuleBasedOfflinePlanner(
 
 object OfflineAiPolicy {
     fun sanitize(proposal: PlannerProposal): PlannerProposal {
-        val action = proposal.action ?: return proposal
-        return if (action.type == ActionType.OBSERVE) {
-            proposal
+        val safeAction = proposal.action?.let(::sanitizeAction)
+        val safeTask = proposal.task?.copy(
+            approvedForBackground = false,
+            steps = proposal.task.steps.map { step ->
+                step.copy(action = sanitizeAction(step.action))
+            }
+        )
+        return proposal.copy(
+            action = safeAction,
+            task = safeTask
+        )
+    }
+
+    private fun sanitizeAction(action: ActionRequest): ActionRequest =
+        if (action.type == ActionType.OBSERVE) {
+            action
         } else {
-            proposal.copy(
-                action = action.copy(
-                    requiresConfirmation = true,
-                    confirmed = false
-                )
+            action.copy(
+                requiresConfirmation = true,
+                confirmed = false
             )
         }
-    }
 }
