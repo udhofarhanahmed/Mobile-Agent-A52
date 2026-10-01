@@ -42,7 +42,11 @@ class BackgroundAgentService : Service() {
             )
 
             while (running && !Thread.currentThread().isInterrupted) {
-                runCatching { runner.tick() }
+                val result = runCatching { runner.tick() }.getOrDefault("FAILED")
+                if (result == "AUTONOMY_DISABLED" || result == "STOPPED" || result == "IDLE") {
+                    stopSelf()
+                    break
+                }
                 try {
                     Thread.sleep(3000L)
                 } catch (_: InterruptedException) {
