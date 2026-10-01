@@ -12,11 +12,16 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.farhan.mobileagent.agent.accessibility.AgentAccessibilityService
 import com.farhan.mobileagent.agent.accessibility.ScreenStateStore
@@ -94,92 +99,193 @@ class MainActivity : ComponentActivity() {
             }
             val capabilities = CapabilityCenter.snapshot(this@MainActivity)
 
-            MaterialTheme {
+            MobileAgentTheme {
                 Column(
-                    Modifier.fillMaxSize().padding(18.dp),
+                    Modifier.fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Mobile Agent A52", style = MaterialTheme.typography.headlineMedium)
-                    Text(if (stopped) "EMERGENCY STOP ACTIVE" else "Protected • Local • Policy gated")
-
-                    Text(
-                        "Battery " + deviceProvider.snapshot().batteryPercent + "% • " +
-                            if (AgentAccessibilityService.instance() != null) "Accessibility connected"
-                            else "Accessibility not connected"
-                    )
-                    Text("Background tasks: " + taskStore.active().size)
-                    Text(
-                        "Notifications • " +
-                            if (notificationEnabled && NotificationListenerState.connected) {
-                                "awareness connected"
-                            } else if (notificationEnabled) {
-                                "access enabled, service reconnecting"
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (stopped) {
+                                MaterialTheme.colorScheme.errorContainer
                             } else {
-                                "awareness disabled"
+                                MaterialTheme.colorScheme.primaryContainer
                             }
-                    )
-
-                    Card(Modifier.fillMaxWidth()) {
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                    ) {
                         Column(
-                            Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                            Modifier.padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(
-                                "Capability & Permission Center",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                "The agent's powers are grouped as Observe, Suggest, and Act. No hidden capability is granted by this screen.",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            CapabilityClass.entries.forEach { group ->
-                                Text(
-                                    group.name.lowercase().replaceFirstChar { it.uppercase() },
-                                    style = MaterialTheme.typography.labelLarge
-                                )
-                                capabilities.filter { it.group == group }.forEach { capability ->
-                                    val status = when (capability.status) {
-                                        CapabilityStatus.READY -> "READY"
-                                        CapabilityStatus.ENABLED_NOT_CONNECTED -> "ENABLED / DISCONNECTED"
-                                        CapabilityStatus.USER_APPROVAL_REQUIRED -> "USER APPROVAL"
-                                        CapabilityStatus.NEEDS_ACCESS -> "NEEDS ACCESS"
-                                        CapabilityStatus.DISABLED_BY_STOP -> "BLOCKED BY STOP"
-                                    }
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(Modifier.weight(1f)) {
                                     Text(
-                                        "• " + capability.capability + " — " + status,
-                                        style = MaterialTheme.typography.bodySmall
+                                        "Mobile Agent A52",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Bold
                                     )
+                                    Text(
+                                        if (stopped) {
+                                            "Emergency STOP is active"
+                                        } else {
+                                            "Local-first • policy gated • user controlled"
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (stopped) {
+                                            MaterialTheme.colorScheme.error
+                                        } else {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        }
+                                    )
+                                }
+                                StatusPill(
+                                    if (stopped) "STOPPED" else "PROTECTED",
+                                    isError = stopped
+                                )
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                AssistChip(
+                                    onClick = { },
+                                    enabled = false,
+                                    label = { Text("Battery " + deviceProvider.snapshot().batteryPercent + "%") }
+                                )
+                                AssistChip(
+                                    onClick = { },
+                                    enabled = false,
+                                    label = {
+                                        Text(
+                                            if (AgentAccessibilityService.instance() != null) {
+                                                "Screen connected"
+                                            } else {
+                                                "Screen access needed"
+                                            }
+                                        )
+                                    }
+                                )
+                            }
+
+                            AssistChip(
+                                onClick = { },
+                                enabled = false,
+                                label = {
+                                    Text(
+                                        when {
+                                            stopped -> "Notifications blocked by STOP"
+                                            notificationEnabled && NotificationListenerState.connected -> "Notifications connected"
+                                            notificationEnabled -> "Notification access enabled"
+                                            else -> "Notifications off"
+                                        }
+                                    )
+                                }
+                            )
+
+                            if (stopped) {
+                                Button(
+                                    onClick = {
+                                        AgentContainer.securityKernel.resetAfterExplicitUserAction()
+                                        stopped = false
+                                        messages = messages + "Agent: Emergency STOP reset by explicit user action."
+                                        auditVersion++
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Resume agent")
                                 }
                             }
                         }
                     }
 
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
                         Column(
-                            Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "Capability center",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "Observe • Suggest • Act",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                Text(
+                                    "LOCAL",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            CapabilityClass.entries.forEach { group ->
+                                Text(
+                                    group.name.lowercase().replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                capabilities.filter { it.group == group }.forEach { capability ->
+                                    CapabilityRow(companion = capability)
+                                }
+                            }
+                        }
+                    }
+
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
                                 "Security controls",
-                                style = MaterialTheme.typography.titleMedium
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
                             )
                             Row(
                                 Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("Background autonomy")
+                                    Text("Background autonomy", fontWeight = FontWeight.SemiBold)
                                     Text(
-                                        if (autonomyEnabled) {
-                                            "Authorized background tasks may run within policy limits."
-                                        } else {
-                                            "Background execution is globally disabled."
+                                        when {
+                                            stopped -> "Policy is " + if (autonomyEnabled) "ON" else "OFF" +
+                                                " • Emergency STOP overrides execution."
+                                            autonomyEnabled -> "ON • Authorized tasks may run within policy limits."
+                                            else -> "OFF • Autonomous background execution is disabled."
                                         },
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
                                 Switch(
                                     checked = autonomyEnabled,
+                                    enabled = !stopped,
                                     onCheckedChange = { enabled ->
                                         AgentContainer.securityKernel.setBackgroundAutonomyEnabled(enabled)
                                         autonomyEnabled = enabled
@@ -203,16 +309,20 @@ class MainActivity : ComponentActivity() {
 
                             if (auditEvents.isEmpty()) {
                                 Text(
-                                    "No audit events yet.",
+                                    "Audit trail is empty.",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             } else {
-                                auditEvents.forEach { event ->
+                                Text(
+                                    "Recent audit • " + auditEvents.size + " event(s)",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                auditEvents.take(4).forEach { event ->
                                     Text(
                                         event.timestamp + " • " +
                                             event.action + " • " +
-                                            event.decision +
-                                            (if (event.detail.isBlank()) "" else " • " + event.detail),
+                                            event.decision,
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
@@ -222,6 +332,68 @@ class MainActivity : ComponentActivity() {
                                     messages = messages + "Agent: Local audit history cleared."
                                 }) {
                                     Text("Clear audit history")
+                                }
+                            }
+                        }
+                    }
+
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "Things worth your attention",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        if (attention.pending().isEmpty()) {
+                                            "You're clear."
+                                        } else {
+                                            attention.pending().size.toString() + " pending item(s)"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                Text(
+                                    "LOCAL",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            attention.pending().take(4).forEach { item ->
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(item.title, fontWeight = FontWeight.Medium)
+                                        if (item.dueAt != null) {
+                                            Text(
+                                                "Due " + formatAttentionTime(item.dueAt),
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                    }
+                                    TextButton(onClick = {
+                                        attention.complete(item.id)
+                                        version++
+                                    }) {
+                                        Text("Done")
+                                    }
                                 }
                             }
                         }
@@ -543,4 +715,100 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+@Composable
+private fun CapabilityRow(companion: com.farhan.mobileagent.agent.core.CapabilityDescriptor) {
+    val label = when (companion.status) {
+        CapabilityStatus.READY -> "READY"
+        CapabilityStatus.ENABLED_NOT_CONNECTED -> "RECONNECTING"
+        CapabilityStatus.USER_APPROVAL_REQUIRED -> "APPROVAL"
+        CapabilityStatus.NEEDS_ACCESS -> "NEEDS ACCESS"
+        CapabilityStatus.DISABLED_BY_USER -> "OFF"
+        CapabilityStatus.DISABLED_BY_STOP -> "STOPPED"
+    }
+
+    val color = when (companion.status) {
+        CapabilityStatus.READY -> MaterialTheme.colorScheme.primary
+        CapabilityStatus.ENABLED_NOT_CONNECTED -> MaterialTheme.colorScheme.tertiary
+        CapabilityStatus.USER_APPROVAL_REQUIRED -> MaterialTheme.colorScheme.secondary
+        CapabilityStatus.NEEDS_ACCESS,
+        CapabilityStatus.DISABLED_BY_STOP -> MaterialTheme.colorScheme.error
+        CapabilityStatus.DISABLED_BY_USER -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+        )
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(companion.capability, fontWeight = FontWeight.Medium)
+                Text(companion.detail, style = MaterialTheme.typography.bodySmall)
+            }
+            Text(
+                label,
+                color = color,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+private fun formatAttentionTime(timestamp: Long): String =
+    java.time.format.DateTimeFormatter.ofPattern("d MMM • h:mm a")
+        .withZone(java.time.ZoneId.systemDefault())
+        .format(java.time.Instant.ofEpochMilli(timestamp))
+
+@Composable
+private fun StatusPill(label: String, isError: Boolean = false) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
+    ) {
+        Text(
+            label,
+            Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+private val AgentLightColors = androidx.compose.material3.lightColorScheme(
+    primary = Color(0xFF6650A4),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFEADDFF),
+    onPrimaryContainer = Color(0xFF21005D),
+    secondaryContainer = Color(0xFFE8DEF8),
+    onSecondaryContainer = Color(0xFF1D192B),
+    background = Color(0xFFF8F6FB),
+    surface = Color.White,
+    surfaceVariant = Color(0xFFEDE7F6),
+    error = Color(0xFFBA1A1A)
+)
+
+private val AgentDarkColors = androidx.compose.material3.darkColorScheme(
+    primary = Color(0xFFD0BCFF),
+    primaryContainer = Color(0xFF4F378B),
+    secondaryContainer = Color(0xFF4A4458),
+    background = Color(0xFF141218),
+    surface = Color(0xFF1D1B20),
+    surfaceVariant = Color(0xFF49454F)
+)
+
+@Composable
+private fun MobileAgentTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = if (isSystemInDarkTheme()) AgentDarkColors else AgentLightColors,
+        content = content
+    )
 }
