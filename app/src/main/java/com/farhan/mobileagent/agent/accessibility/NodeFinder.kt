@@ -18,9 +18,7 @@ object NodeFinder {
             }
         }
         target.contentDescription?.let { desc ->
-            return depthFirst(root)
-                .firstOrNull { it.contentDescription?.toString() == desc }
-                ?.let { it }
+            return findByContentDescription(root, desc)
         }
         return null
     }
@@ -34,12 +32,25 @@ object NodeFinder {
         return null
     }
 
-    private fun depthFirst(root: AccessibilityNodeInfo): Sequence<AccessibilityNodeInfo> = sequence {
-        yield(root)
-        for (i in 0 until root.childCount) {
-            root.getChild(i)?.let { yieldAll(depthFirst(it)) }
+    private fun findByContentDescription(
+        root: AccessibilityNodeInfo,
+        description: String
+    ): AccessibilityNodeInfo? {
+        var visited = 0
+
+        fun walk(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+            if (visited++ >= MAX_NODES) return null
+            if (node.contentDescription?.toString() == description) return node
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i) ?: continue
+                walk(child)?.let { return it }
+            }
+            return null
         }
+
+        return walk(root)
     }
 
     private const val MAX_ANCESTORS = 8
+    private const val MAX_NODES = 1_000
 }
