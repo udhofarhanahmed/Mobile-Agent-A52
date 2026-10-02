@@ -74,11 +74,23 @@ class BackgroundAgentService : Service() {
             )
 
             while (running && !Thread.currentThread().isInterrupted) {
-                val result = runCatching { runner.tick() }.getOrDefault("FAILED")
+                val result = runCatching { runner.tick() }
+                    .getOrElse {
+                        AgentContainer.auditLog.record(
+                            com.farhan.mobileagent.agent.audit.AuditEvent(
+                                action = "TASK_RUNNER",
+                                decision = "ERROR",
+                                detail = it.message ?: it::class.java.simpleName,
+                                success = false
+                            )
+                        )
+                        "FAILED_FATAL"
+                    }
 
                 if (result == "AUTONOMY_DISABLED" ||
                     result == "STOPPED" ||
-                    result == "IDLE"
+                    result == "IDLE" ||
+                    result == "FAILED_FATAL"
                 ) {
                     stopSelf()
                     break
