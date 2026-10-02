@@ -3,6 +3,7 @@ package com.farhan.mobileagent.agent.core
 import com.farhan.mobileagent.agent.audit.AuditLog
 import com.farhan.mobileagent.agent.model.ActionRequest
 import com.farhan.mobileagent.agent.model.ActionResult
+import com.farhan.mobileagent.agent.policy.ApprovedAction
 import com.farhan.mobileagent.agent.policy.ConfirmationManager
 import com.farhan.mobileagent.agent.security.SecurityKernel
 
@@ -28,7 +29,7 @@ class AgentRuntime(
 
     fun approve(
         id: String,
-        executor: (ActionRequest) -> ActionResult
+        executor: (ApprovedAction) -> ActionResult
     ): ActionResult? {
         val approved = confirmation.approve(id) ?: return null
         return executor(approved)
