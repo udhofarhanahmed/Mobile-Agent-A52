@@ -65,7 +65,8 @@ class TaskRunner(
         }
 
         val runnableTask = if (task?.state == TaskState.PAUSED) {
-            task.copy(state = TaskState.RUNNING, lastError = null).also(store::upsert)
+            // Accessibility reconnects never grant execution authority by themselves.
+            return "PAUSED"
         } else {
             task
         } ?: return "IDLE"
