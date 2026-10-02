@@ -80,13 +80,13 @@ class CallActivity : ComponentActivity() {
                         ) {
                             items(matches) { match ->
                                 Card(
-                                    Modifier.fillMaxWidth(),
                                     onClick = {
                                         targetName = match.name
                                         phoneNumber = match.number
                                         matches = emptyList()
                                         openDialer(match.number)
-                                    }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(Modifier.padding(14.dp)) {
                                         Text(match.name)
