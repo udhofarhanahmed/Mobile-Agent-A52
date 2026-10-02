@@ -148,16 +148,17 @@ class TaskRunner(
         }
     }
 
-    private fun verifyStep(step: TaskStep): Boolean {
+    private fun verifyStep(step: TaskStep, minimumUpdatedAt: Long = 0L): Boolean {
         if (step.verifyPackage == null && step.verifyText == null) return true
         val deadline = SystemClock.elapsedRealtime() + 1_500L
 
         while (SystemClock.elapsedRealtime() < deadline) {
             val screen = ScreenStateStore.get()
+            val freshEnough = minimumUpdatedAt == 0L || screen.updatedAt >= minimumUpdatedAt
             val packageOk = step.verifyPackage == null || screen.packageName == step.verifyPackage
             val textOk = step.verifyText == null ||
                 screen.visibleText.any { it.contains(step.verifyText, ignoreCase = true) }
-            if (packageOk && textOk) return true
+            if (freshEnough && packageOk && textOk) return true
             try {
                 Thread.sleep(100L)
             } catch (_: InterruptedException) {
@@ -197,7 +198,16 @@ class TaskRunner(
             return true
         }
 
-        if (result.success && !verifyStep(step)) {
+        val verificationStartedAt = if (result.success &&
+            (step.verifyPackage != null || step.verifyText != null)
+        ) {
+            ScreenStateStore.clear()
+            System.currentTimeMillis()
+        } else {
+            0L
+        }
+
+        if (result.success && !verifyStep(step, verificationStartedAt)) {
             return handleFailure(task, actionCount, "Post-action verification failed") != "RETRYING"
         }
 
