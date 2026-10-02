@@ -51,7 +51,13 @@ class LocalCommandRouter {
                 return CommandResult.BackgroundTask(
                     AgentTask(
                         title = background,
-                        steps = results.map { TaskStep(action = (it as CommandResult.Action).request) },
+                        steps = results.map {
+                            val request = (it as CommandResult.Action).request
+                            TaskStep(
+                                action = request,
+                                verifyPackage = request.packageName.takeIf { request.type == ActionType.OPEN_APP }
+                            )
+                        },
                         approvedForBackground = false
                     )
                 )
