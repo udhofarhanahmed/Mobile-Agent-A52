@@ -24,11 +24,40 @@ class SecurityKernel {
     fun evaluate(request: ActionRequest): Decision {
         if (stopped) return Decision.DENY
 
-        // The kernel is the authority. Callers cannot disable confirmation
-        // simply by setting requiresConfirmation=false. Only observation is
-        // intrinsically non-mutating; every device action must arrive confirmed.
+        // Request fields such as "confirmed" are untrusted input. They never
+        // grant execution authority by themselves.
         if (request.type == ActionType.OBSERVE) return Decision.ALLOW
-        return if (request.confirmed) Decision.ALLOW else Decision.REQUIRE_CONFIRMATION
+        return Decision.REQUIRE_CONFIRMATION
+    }
+
+    internal fun evaluateApproved(request: ActionRequest): Decision {
+        if (stopped) return Decision.DENY
+        return Decision.ALLOW
+    }
+
+    internal fun evaluateBackground(request: ActionRequest): Decision {
+        if (stopped) return Decision.DENY
+        if (!backgroundAutonomyEnabled) return Decision.DENY
+        return if (isBackgroundSafe(request.type)) {
+            Decision.ALLOW
+        } else {
+            Decision.REQUIRE_CONFIRMATION
+        }
+    }
+
+    private fun isBackgroundSafe(type: ActionType): Boolean = when (type) {
+        ActionType.OBSERVE,
+        ActionType.OPEN_APP,
+        ActionType.OPEN_SETTINGS,
+        ActionType.BACK,
+        ActionType.HOME,
+        ActionType.RECENTS,
+        ActionType.VOLUME_UP,
+        ActionType.VOLUME_DOWN,
+        ActionType.MUTE -> true
+        ActionType.TAP,
+        ActionType.SWIPE,
+        ActionType.TYPE_TEXT -> false
     }
 
     fun emergencyStop() {
