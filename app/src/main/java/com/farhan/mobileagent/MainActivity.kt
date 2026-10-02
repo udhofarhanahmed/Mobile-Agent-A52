@@ -772,10 +772,11 @@ class MainActivity : ComponentActivity() {
                             if (service == null) {
                                 messages = messages + "Agent: Accessibility Service is not connected."
                             } else {
-                                val result = runtime.approve(action.id) { request ->
-                                    service.executeApproved(request)
+                                val execution = runtime.approve(action.id) { approved ->
+                                    service.executeApproved(approved)
                                 }
-                                messages = messages + "Agent: " + (result?.message ?: "Approval expired.")
+                                messages = messages + "Agent: " +
+                                    (execution?.result?.message ?: "Approval expired.")
                             }
                             pending = null
                             auditVersion++
@@ -810,20 +811,21 @@ class MainActivity : ComponentActivity() {
                             if (service == null) {
                                 messages = messages + "Agent: Accessibility Service is not connected."
                             } else {
-                                val result = runtime.approve(approval.pending.id) { request ->
-                                    service.executeApproved(request)
+                                val execution = runtime.approve(approval.pending.id) { approved ->
+                                    service.executeApproved(approved)
                                 }
-                                if (result != null) {
+                                if (execution != null) {
                                     taskRunner.recordUserApprovedStep(
                                         approval.taskId,
                                         approval.stepId,
-                                        result
+                                        execution.approved,
+                                        execution.result
                                     )
                                     messages = messages + "Agent: Background step " +
-                                        if (result.success) {
+                                        if (execution.result.success) {
                                             "approved and completed."
                                         } else {
-                                            "failed: " + result.message
+                                            "failed: " + execution.result.message
                                         }
                                     version++
                                 } else {
