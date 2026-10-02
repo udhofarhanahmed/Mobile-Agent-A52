@@ -34,7 +34,11 @@ class AuditLog {
 
     @Synchronized
     fun record(event: AuditEvent) {
-        events += event
+        events += event.copy(
+            action = event.action.take(MAX_FIELD),
+            decision = event.decision.take(MAX_FIELD),
+            detail = event.detail.take(MAX_DETAIL)
+        )
         persist()
     }
 
@@ -102,5 +106,7 @@ class AuditLog {
     private companion object {
         const val KEY = "audit_events"
         const val MAX_EVENTS = 500
+        const val MAX_FIELD = 100
+        const val MAX_DETAIL = 500
     }
 }
