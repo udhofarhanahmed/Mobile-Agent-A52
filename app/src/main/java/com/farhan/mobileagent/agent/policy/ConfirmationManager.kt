@@ -11,19 +11,35 @@ class ApprovedAction internal constructor(
 )
 
 class ConfirmationManager {
-    private val pending = ConcurrentHashMap<String, ActionRequest>()
+    private data class PendingEntry(
+        val request: ActionRequest,
+        val createdAtMs: Long
+    )
+
+    private val pending = ConcurrentHashMap<String, PendingEntry>()
 
     fun request(request: ActionRequest): String {
         val id = UUID.randomUUID().toString()
-        pending[id] = request.copy(confirmed = false)
+        pending[id] = PendingEntry(
+            request = request.copy(confirmed = false),
+            createdAtMs = System.currentTimeMillis()
+        )
         return id
     }
 
-    fun approve(id: String): ApprovedAction? =
-        pending.remove(id)?.let { ApprovedAction(it) }
+    fun approve(id: String): ApprovedAction? {
+        val entry = pending.remove(id) ?: return null
+        val age = System.currentTimeMillis() - entry.createdAtMs
+        if (age < 0L || age > MAX_PENDING_AGE_MS) return null
+        return ApprovedAction(entry.request)
+    }
 
-    fun reject(id: String): ActionRequest? = pending.remove(id)
+    fun reject(id: String): ActionRequest? = pending.remove(id)?.request
     fun hasPending(): Boolean = pending.isNotEmpty()
+
+    private companion object {
+        const val MAX_PENDING_AGE_MS = 5L * 60L * 1000L
+    }
 
     fun levelFor(request: ActionRequest): ConfirmationLevel =
         when (request.type) {
