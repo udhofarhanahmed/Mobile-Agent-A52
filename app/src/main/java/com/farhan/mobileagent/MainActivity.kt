@@ -677,6 +677,7 @@ class MainActivity : ComponentActivity() {
 
                     taskStore.all().filter {
                         it.state == TaskState.QUEUED ||
+                            it.state == TaskState.RUNNING ||
                             it.state == TaskState.WAITING_FOR_USER ||
                             (it.state == TaskState.PAUSED && it.approvedForBackground)
                     }.take(5).forEach { task ->
@@ -717,6 +718,20 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     }) { Text("Authorize background") }
+                                } else {
+                                    OutlinedButton(onClick = {
+                                        val revoked = taskStore.revokeBackground(task.id)
+                                        if (revoked != null) {
+                                            if (taskStore.active().none { it.approvedForBackground }) {
+                                                stopService(
+                                                    Intent(this@MainActivity, BackgroundAgentService::class.java)
+                                                )
+                                            }
+                                            messages = messages + "Agent: Background authorization revoked for " + task.title
+                                            version++
+                                            auditVersion++
+                                        }
+                                    }) { Text("Revoke background") }
                                 }
 
                                 if (task.state == TaskState.WAITING_FOR_USER &&
