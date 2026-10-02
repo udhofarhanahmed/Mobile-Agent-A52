@@ -106,7 +106,7 @@ class BackgroundAgentService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int =
-        START_NOT_STICKY
+        START_STICKY
 
     override fun onDestroy() {
         running = false
