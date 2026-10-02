@@ -12,6 +12,11 @@ data class PendingAction(
     val request: ActionRequest
 )
 
+data class ApprovedExecution(
+    val approved: ApprovedAction,
+    val result: ActionResult
+)
+
 class AgentRuntime(
     private val kernel: SecurityKernel,
     private val confirmation: ConfirmationManager,
@@ -30,9 +35,9 @@ class AgentRuntime(
     fun approve(
         id: String,
         executor: (ApprovedAction) -> ActionResult
-    ): ActionResult? {
+    ): ApprovedExecution? {
         val approved = confirmation.approve(id) ?: return null
-        return executor(approved)
+        return ApprovedExecution(approved, executor(approved))
     }
 
     fun reject(id: String): ActionRequest? {
