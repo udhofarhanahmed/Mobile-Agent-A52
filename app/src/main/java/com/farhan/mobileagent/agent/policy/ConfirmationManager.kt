@@ -6,6 +6,10 @@ import com.farhan.mobileagent.agent.model.ConfirmationLevel
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
+class ApprovedAction internal constructor(
+    val request: ActionRequest
+)
+
 class ConfirmationManager {
     private val pending = ConcurrentHashMap<String, ActionRequest>()
 
@@ -15,8 +19,8 @@ class ConfirmationManager {
         return id
     }
 
-    fun approve(id: String): ActionRequest? =
-        pending.remove(id)?.copy(confirmed = true)
+    fun approve(id: String): ApprovedAction? =
+        pending.remove(id)?.let { ApprovedAction(it) }
 
     fun reject(id: String): ActionRequest? = pending.remove(id)
     fun hasPending(): Boolean = pending.isNotEmpty()
