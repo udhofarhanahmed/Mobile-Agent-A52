@@ -1,6 +1,8 @@
 package com.farhan.mobileagent
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
@@ -8,66 +10,40 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+
+private data class ResolvedPhone(val name: String, val number: String)
 
 class CallActivity : ComponentActivity() {
     private var targetName by mutableStateOf("")
     private var phoneNumber by mutableStateOf<String?>(null)
-    private var status by mutableStateOf("Choose a contact to continue.")
+    private var matches by mutableStateOf<List<ResolvedPhone>>(emptyList())
+    private var status by mutableStateOf("Preparing a protected call.")
 
-    private val contactPicker = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val uri = result.data?.data
-        if (uri == null) {
-            status = "No contact selected."
-            return@registerForActivityResult
-        }
-
-        val selected = contentResolver.query(
-            uri,
-            arrayOf(
-                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                ContactsContract.CommonDataKinds.Phone.NUMBER
-            ),
-            null,
-            null,
-            null
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val name = cursor.getString(0).orEmpty()
-                val number = cursor.getString(1).orEmpty()
-                name to number
-            } else {
-                null
-            }
-        }
-
-        if (selected == null || selected.second.isBlank()) {
-            status = "The selected contact has no usable phone number."
-            phoneNumber = null
-        } else {
-            targetName = selected.first.ifBlank { "Selected contact" }
-            phoneNumber = selected.second
-            status = "Ready to open the Phone app."
-        }
+    private val contactsPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) resolveTarget(true)
+        else status = "Contacts access was denied. You can still use a phone number."
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        targetName = intent.getStringExtra(EXTRA_TARGET).orEmpty().trim()
 
-        val initialTarget = intent.getStringExtra(EXTRA_TARGET).orEmpty().trim()
-        targetName = initialTarget
-
-        if (isLikelyPhoneNumber(initialTarget)) {
-            phoneNumber = initialTarget
-            status = "Ready to open the Phone app."
-        } else if (initialTarget.isNotBlank()) {
-            status = "Select the contact matching “$initialTarget”."
-            openContactPicker()
+        if (isLikelyPhoneNumber(targetName)) {
+            phoneNumber = targetName
+        } else if (targetName.isNotBlank()) {
+            if (hasContactsPermission()) resolveTarget(true)
+            else status = "Allow Contacts so I can resolve “" + targetName + "” without opening the Contacts app."
+        } else {
+            status = "Enter a contact name or number through the agent."
         }
 
         setContent {
@@ -76,92 +52,119 @@ class CallActivity : ComponentActivity() {
                     Modifier.fillMaxSize().padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text("Call", style = MaterialTheme.typography.headlineMedium)
+                    Text("Protected call", style = MaterialTheme.typography.headlineMedium)
                     Text(
-                        "The agent will only prepare the call. Android’s Phone app keeps the final Call button under your control.",
+                        "I resolve the number locally, then open the Phone app. You still press the final Call button.",
                         style = MaterialTheme.typography.bodyMedium
                     )
-
                     Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                targetName.ifBlank { "No target selected" },
-                                style = MaterialTheme.typography.titleLarge
-                            )
-                            phoneNumber?.let {
-                                Text(
-                                    it,
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                            }
-                            Text(
-                                status,
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(targetName.ifBlank { "No target" }, style = MaterialTheme.typography.titleLarge)
+                            phoneNumber?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
+                            Text(status, style = MaterialTheme.typography.bodySmall)
                         }
                     }
-
-                    if (phoneNumber == null) {
+                    if (targetName.isNotBlank() && phoneNumber == null && !hasContactsPermission()) {
                         Button(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { openContactPicker() }
+                            Modifier.fillMaxWidth(),
+                            onClick = {
+                                contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                            }
+                        ) { Text("Allow contacts access") }
+                    }
+                    if (matches.isNotEmpty()) {
+                        Text("Choose a matching number", style = MaterialTheme.typography.titleMedium)
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Text("Choose contact")
+                            items(matches) { match ->
+                                Card(
+                                    Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        targetName = match.name
+                                        phoneNumber = match.number
+                                        matches = emptyList()
+                                        openDialer(match.number)
+                                    }
+                                ) {
+                                    Column(Modifier.padding(14.dp)) {
+                                        Text(match.name)
+                                        Text(match.number)
+                                    }
+                                }
+                            }
                         }
                     } else {
-                        Button(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { openDialer(phoneNumber.orEmpty()) }
-                        ) {
-                            Text("Open Phone app")
-                        }
-
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { openContactPicker() }
-                        ) {
-                            Text("Choose a different contact")
-                        }
+                        Spacer(Modifier.weight(1f))
                     }
-
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { finish() }
-                    ) {
-                        Text("Cancel")
+                    if (phoneNumber != null) {
+                        Button(
+                            Modifier.fillMaxWidth(),
+                            onClick = { openDialer(phoneNumber.orEmpty()) }
+                        ) { Text("Open Phone with number ready") }
+                    }
+                    OutlinedButton(Modifier.fillMaxWidth(), onClick = { finish() }) {
+                        Text("Close")
                     }
                 }
             }
         }
     }
 
-    private fun openContactPicker() {
-        val intent = Intent(
-            Intent.ACTION_PICK,
-            ContactsContract.CommonDataKinds.Phone.CONTENT_URI
-        )
-        contactPicker.launch(intent)
-    }
+    private fun hasContactsPermission(): Boolean =
+        android.os.Build.VERSION.SDK_INT < 23 ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
 
-    private fun openDialer(number: String) {
-        val intent = Intent(
-            Intent.ACTION_DIAL,
-            Uri.fromParts("tel", number, null)
-        )
-        if (intent.resolveActivity(packageManager) != null) {
-            startActivity(intent)
-            status = "Phone app opened. Review the number and press Call there."
-        } else {
-            status = "No Phone app is available to handle this number."
+    private fun resolveTarget(autoLaunch: Boolean) {
+        if (!hasContactsPermission() || targetName.isBlank()) return
+        val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_FILTER_URI
+            .buildUpon().appendPath(Uri.encode(targetName)).build()
+        val found = mutableListOf<ResolvedPhone>()
+        contentResolver.query(
+            uri,
+            arrayOf(
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                ContactsContract.CommonDataKinds.Phone.NUMBER
+            ),
+            null,
+            null,
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+        )?.use { cursor ->
+            while (cursor.moveToNext() && found.size < 8) {
+                val name = cursor.getString(0).orEmpty()
+                val number = cursor.getString(1).orEmpty()
+                if (number.isNotBlank() && found.none { it.number == number }) {
+                    found += ResolvedPhone(name.ifBlank { targetName }, number)
+                }
+            }
+        }
+        matches = found
+        when {
+            found.isEmpty() -> status = "No phone number matched “" + targetName + "”."
+            found.size == 1 -> {
+                targetName = found.first().name
+                phoneNumber = found.first().number
+                status = "Matched locally. Phone app is ready."
+                if (autoLaunch) openDialer(phoneNumber!!)
+            }
+            else -> status = "I found " + found.size + " matching phone numbers."
         }
     }
 
-    private fun isLikelyPhoneNumber(value: String): Boolean {
-        val normalized = value.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
-        val digitCount = normalized.count(Char::isDigit)
-        return digitCount >= 7 &&
-            (normalized.firstOrNull()?.let { it.isDigit() || it == '+' || it == '*' || it == '#' } == true)
+    private fun openDialer(number: String) {
+        val normalized = number.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
+        val intent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", normalized, null))
+        if (intent.resolveActivity(packageManager) != null) {
+            startActivity(intent)
+            status = "Phone app opened. Review the number and press Call."
+        } else {
+            status = "No Phone app is available."
+        }
     }
+
+    private fun isLikelyPhoneNumber(value: String): Boolean =
+        value.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }.count(Char::isDigit) >= 7
 
     companion object {
         const val EXTRA_TARGET = "call_target"

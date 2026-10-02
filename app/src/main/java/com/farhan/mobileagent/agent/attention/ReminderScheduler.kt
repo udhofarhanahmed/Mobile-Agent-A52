@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.core.app.NotificationCompat
 
 class ReminderScheduler(private val context: Context) {
@@ -16,22 +17,27 @@ class ReminderScheduler(private val context: Context) {
         val intent = Intent(context, AttentionReminderReceiver::class.java)
             .putExtra("title", item.title)
             .putExtra("detail", item.detail)
+            .putExtra("item_id", item.id)
         val pending = PendingIntent.getBroadcast(
             context,
             item.id.hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dueAt, pending)
+
+        if (Build.VERSION.SDK_INT >= 31 && alarm.canScheduleExactAlarms()) {
+            alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dueAt, pending)
+        } else {
+            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dueAt, pending)
+        }
     }
 
     fun cancel(item: AttentionItem) {
         val alarm = context.getSystemService(AlarmManager::class.java) ?: return
-        val intent = Intent(context, AttentionReminderReceiver::class.java)
         val pending = PendingIntent.getBroadcast(
             context,
             item.id.hashCode(),
-            intent,
+            Intent(context, AttentionReminderReceiver::class.java),
             PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
         )
         pending?.let {
@@ -45,26 +51,25 @@ class AttentionReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         val channelId = "attention_reminders"
-        if (android.os.Build.VERSION.SDK_INT >= 26) {
+        if (Build.VERSION.SDK_INT >= 26) {
             manager.createNotificationChannel(
                 NotificationChannel(
                     channelId,
-                    "Attention reminders",
+                    "Attention & alarms",
                     NotificationManager.IMPORTANCE_HIGH
                 )
             )
         }
 
-        val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+        NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(com.farhan.mobileagent.R.drawable.agent_logo)
             .setContentTitle(intent.getStringExtra("title") ?: "Reminder")
-            .setContentText(intent.getStringExtra("detail") ?: "You asked me to remind you.")
+            .setContentText(intent.getStringExtra("detail") ?: "Your agent reminder is due.")
             .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
-
-        manager.notify(
-            System.currentTimeMillis().toInt(),
-            notification
-        )
+            .also {
+                manager.notify(System.currentTimeMillis().toInt(), it)
+            }
     }
 }

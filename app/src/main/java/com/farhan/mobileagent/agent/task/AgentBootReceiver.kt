@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
+import com.farhan.mobileagent.AgentSettings
 import com.farhan.mobileagent.agent.core.AgentContainer
 
 class AgentBootReceiver : BroadcastReceiver() {
@@ -14,7 +15,8 @@ class AgentBootReceiver : BroadcastReceiver() {
         val appContext = context.applicationContext
         AgentContainer.initialize(appContext)
 
-        val shouldResume = !AgentContainer.securityKernel.isStopped() &&
+        val shouldResume = AgentSettings.startOnBoot(appContext) &&
+            !AgentContainer.securityKernel.isStopped() &&
             AgentContainer.securityKernel.isBackgroundAutonomyEnabled() &&
             TaskStore(appContext).active().any { it.approvedForBackground }
 
