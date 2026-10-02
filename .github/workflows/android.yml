@@ -19,6 +19,8 @@ jobs:
           gradle-version: '8.10'
       - name: Unit tests
         run: gradle test
+      - name: Android lint
+        run: gradle lint
       - name: Build debug APK
         run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
