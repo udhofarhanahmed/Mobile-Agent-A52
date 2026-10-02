@@ -6,6 +6,8 @@ import com.farhan.mobileagent.agent.accessibility.ScreenStateStore
 import com.farhan.mobileagent.agent.core.AgentRuntime
 import com.farhan.mobileagent.agent.model.ActionResult
 import com.farhan.mobileagent.agent.model.ActionType
+import com.farhan.mobileagent.agent.model.Decision
+import com.farhan.mobileagent.agent.policy.ApprovedAction
 import com.farhan.mobileagent.agent.security.SecurityKernel
 
 object BackgroundActionPolicy {
@@ -170,6 +172,7 @@ class TaskRunner(
     fun recordUserApprovedStep(
         taskId: String,
         stepId: String,
+        approved: ApprovedAction,
         result: ActionResult
     ): Boolean {
         if (kernel.isStopped() || !kernel.isBackgroundAutonomyEnabled()) return false
@@ -178,6 +181,11 @@ class TaskRunner(
         if (!task.approvedForBackground || task.state != TaskState.WAITING_FOR_USER) return false
         val step = task.steps.getOrNull(task.currentStep) ?: return false
         if (step.id != stepId) return false
+
+        // The approval receipt must correspond to this exact persisted step.
+        // A synthetic ActionResult cannot advance a different request.
+        if (approved.request != step.action) return false
+        if (result.decision != Decision.ALLOW) return false
 
         TaskBudgetPolicy.exceeded(task)?.let { reason ->
             store.upsert(task.copy(state = TaskState.FAILED, lastError = reason))
