@@ -120,7 +120,11 @@ class TaskRunner(
         }
 
         if (!verifyStep(step)) {
-            return handleFailure(runnableTask, nextActionCount, "Post-action verification failed")
+            return handleVerificationFailure(
+                runnableTask,
+                nextActionCount,
+                "Post-action verification failed; action will not be retried automatically"
+            )
         }
 
         val next = runnableTask.currentStep + 1
@@ -134,6 +138,22 @@ class TaskRunner(
             )
         )
         return if (next >= runnableTask.steps.size) "COMPLETED" else "STEP_OK"
+    }
+
+    private fun handleVerificationFailure(
+        task: AgentTask,
+        actionCount: Int,
+        message: String
+    ): String {
+        store.upsert(
+            task.copy(
+                state = TaskState.WAITING_FOR_USER,
+                attempts = task.attempts + 1,
+                actionsExecuted = actionCount,
+                lastError = message
+            )
+        )
+        return "WAITING_FOR_USER"
     }
 
     private fun handleFailure(task: AgentTask, actionCount: Int, message: String): String {
@@ -224,7 +244,12 @@ class TaskRunner(
         }
 
         if (result.success && !verifyStep(step, verificationStartedAt)) {
-            return handleFailure(task, actionCount, "Post-action verification failed") != "RETRYING"
+            handleVerificationFailure(
+                task,
+                actionCount,
+                "Post-action verification failed; action will not be retried automatically"
+            )
+            return true
         }
 
         if (result.success) {
