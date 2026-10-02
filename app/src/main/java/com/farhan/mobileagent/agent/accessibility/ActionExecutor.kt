@@ -10,6 +10,7 @@ import android.provider.Settings
 import android.view.accessibility.AccessibilityNodeInfo
 import com.farhan.mobileagent.agent.audit.AuditLog
 import com.farhan.mobileagent.agent.model.*
+import com.farhan.mobileagent.agent.policy.ApprovedAction
 import com.farhan.mobileagent.agent.security.ActionGuard
 import com.farhan.mobileagent.agent.security.SecurityKernel
 
@@ -19,9 +20,20 @@ class ActionExecutor(
     private val guard: ActionGuard,
     private val audit: AuditLog
 ) {
-    fun execute(request: ActionRequest): ActionResult {
+    fun execute(request: ActionRequest): ActionResult =
+        executeAuthorized(request, kernel.evaluate(request))
+
+    fun executeUserApproved(approved: ApprovedAction): ActionResult =
+        executeAuthorized(approved.request, kernel.evaluateApproved(approved.request))
+
+    fun executeBackground(request: ActionRequest): ActionResult =
+        executeAuthorized(request, kernel.evaluateBackground(request))
+
+    private fun executeAuthorized(
+        request: ActionRequest,
+        decision: Decision
+    ): ActionResult {
         val start = SystemClock.elapsedRealtime()
-        val decision = kernel.evaluate(request)
         if (decision != Decision.ALLOW) {
             audit.record(request, decision.name, "Blocked by security policy", false)
             return ActionResult(false, "Action blocked: " + decision.name, decision, elapsed(start))
