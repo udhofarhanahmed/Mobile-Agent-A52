@@ -3,6 +3,7 @@ package com.farhan.mobileagent.agent.accessibility
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import com.farhan.mobileagent.agent.core.AgentContainer
+import com.farhan.mobileagent.agent.policy.ApprovedAction
 import com.farhan.mobileagent.agent.model.ActionResult
 import com.farhan.mobileagent.agent.model.Decision
 import com.farhan.mobileagent.agent.model.ActionRequest
@@ -54,9 +55,16 @@ class AgentAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
-    fun executeApproved(request: ActionRequest): ActionResult =
+    fun executeApproved(approved: ApprovedAction): ActionResult =
         if (::executor.isInitialized && actionable) {
-            executor.execute(request)
+            executor.executeUserApproved(approved)
+        } else {
+            ActionResult(false, "Accessibility service is not actionable", Decision.DENY)
+        }
+
+    fun executeBackground(request: ActionRequest): ActionResult =
+        if (::executor.isInitialized && actionable) {
+            executor.executeBackground(request)
         } else {
             ActionResult(false, "Accessibility service is not actionable", Decision.DENY)
         }
