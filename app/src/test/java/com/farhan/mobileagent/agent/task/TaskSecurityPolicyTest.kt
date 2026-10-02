@@ -29,7 +29,7 @@ class TaskSecurityPolicyTest {
     fun taskBudgetAcceptsNormalTask() {
         val task = AgentTask(
             title = "test",
-            steps = listOf(TaskStep(ActionRequest(ActionType.HOME))),
+            steps = listOf(TaskStep(action = ActionRequest(ActionType.HOME))),
             createdAt = 1_000L,
             actionsExecuted = 1,
             maxActions = 5
@@ -42,7 +42,7 @@ class TaskSecurityPolicyTest {
     fun taskBudgetRejectsOverLimit() {
         val task = AgentTask(
             title = "test",
-            steps = listOf(TaskStep(ActionRequest(ActionType.HOME))),
+            steps = listOf(TaskStep(action = ActionRequest(ActionType.HOME))),
             createdAt = 1_000L,
             actionsExecuted = 5,
             maxActions = 5
@@ -55,7 +55,7 @@ class TaskSecurityPolicyTest {
     fun taskBudgetRejectsStaleTask() {
         val task = AgentTask(
             title = "test",
-            steps = listOf(TaskStep(ActionRequest(ActionType.HOME))),
+            steps = listOf(TaskStep(action = ActionRequest(ActionType.HOME))),
             createdAt = 1_000L,
             actionsExecuted = 0,
             maxActions = 5
