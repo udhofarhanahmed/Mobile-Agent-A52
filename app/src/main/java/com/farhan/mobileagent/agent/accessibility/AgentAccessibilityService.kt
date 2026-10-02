@@ -92,8 +92,10 @@ class AgentAccessibilityService : AccessibilityService() {
         node: android.view.accessibility.AccessibilityNodeInfo
     ): List<String> {
         val result = mutableListOf<String>()
+        var visited = 0
 
         fun walk(current: android.view.accessibility.AccessibilityNodeInfo) {
+            if (visited++ >= MAX_NODES) return
             if (!current.isVisibleToUser || current.isPassword) return
 
             current.text?.toString()?.trim()
@@ -110,7 +112,7 @@ class AgentAccessibilityService : AccessibilityService() {
         }
 
         walk(node)
-        return result.distinct().take(120)
+        return result.distinct().take(MAX_VISIBLE_TEXT)
     }
 
     override fun onInterrupt() {
@@ -121,6 +123,9 @@ class AgentAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        private const val MAX_NODES = 1_000
+        private const val MAX_VISIBLE_TEXT = 120
+
         @Volatile private var instance: AgentAccessibilityService? = null
 
         fun instance(): AgentAccessibilityService? = instance
