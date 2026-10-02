@@ -5,13 +5,18 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import com.farhan.mobileagent.agent.core.AgentContainer
 import com.farhan.mobileagent.agent.core.AgentRuntime
 
 class BackgroundAgentService : Service() {
     private val channelId = "agent_background"
-    @Volatile private var running = false
+
+    @Volatile
+    private var running = false
+
     private var worker: Thread? = null
 
     override fun onCreate() {
@@ -27,7 +32,34 @@ class BackgroundAgentService : Service() {
             .setCategory(Notification.CATEGORY_SERVICE)
             .build()
 
-        startForeground(1001, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    1001,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                startForeground(1001, notification)
+            }
+        } catch (_: SecurityException) {
+            running = false
+            stopSelf()
+            return
+        } catch (_: IllegalArgumentException) {
+            running = false
+            stopSelf()
+            return
+        }
+
+        if (AgentContainer.securityKernel.isStopped() ||
+            !AgentContainer.securityKernel.isBackgroundAutonomyEnabled() ||
+            TaskStore(applicationContext).active().none { it.approvedForBackground }
+        ) {
+            stopSelf()
+            return
+        }
 
         running = true
         worker = Thread {
@@ -43,10 +75,15 @@ class BackgroundAgentService : Service() {
 
             while (running && !Thread.currentThread().isInterrupted) {
                 val result = runCatching { runner.tick() }.getOrDefault("FAILED")
-                if (result == "AUTONOMY_DISABLED" || result == "STOPPED" || result == "IDLE") {
+
+                if (result == "AUTONOMY_DISABLED" ||
+                    result == "STOPPED" ||
+                    result == "IDLE"
+                ) {
                     stopSelf()
                     break
                 }
+
                 try {
                     Thread.sleep(3000L)
                 } catch (_: InterruptedException) {
@@ -56,7 +93,8 @@ class BackgroundAgentService : Service() {
         }.also { it.start() }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int =
+        START_NOT_STICKY
 
     override fun onDestroy() {
         running = false
