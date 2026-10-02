@@ -17,9 +17,21 @@ class SecurityKernelTest {
         assertEquals(Decision.REQUIRE_CONFIRMATION, kernel.evaluate(ActionRequest(ActionType.HOME)))
     }
 
-    @Test fun approvedActionIsAllowed() {
+    @Test fun confirmedFlagAloneNeverAuthorizesAnAction() {
         val kernel = SecurityKernel()
-        assertEquals(Decision.ALLOW, kernel.evaluate(ActionRequest(ActionType.HOME, confirmed = true)))
+        assertEquals(Decision.REQUIRE_CONFIRMATION, kernel.evaluate(ActionRequest(ActionType.HOME, confirmed = true)))
+    }
+
+    @Test fun backgroundPolicyAllowsLowRiskOnly() {
+        val kernel = SecurityKernel()
+        assertEquals(
+            Decision.ALLOW,
+            kernel.evaluateBackground(ActionRequest(ActionType.HOME))
+        )
+        assertEquals(
+            Decision.REQUIRE_CONFIRMATION,
+            kernel.evaluateBackground(ActionRequest(ActionType.TAP))
+        )
     }
 
     @Test fun callerCannotDisableConfirmationPolicy() {
