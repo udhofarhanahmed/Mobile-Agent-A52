@@ -25,6 +25,7 @@ class PlaybackService : MediaSessionService() {
     ): MediaSession? = mediaSession
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
             ACTION_PLAY_URI -> {
                 val uri = intent.getParcelableExtra<Uri>(EXTRA_URI)
