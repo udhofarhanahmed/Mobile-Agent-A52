@@ -87,7 +87,16 @@ class TaskRunner(
             return "COMPLETED"
         }
 
-        val step = runnableTask.steps[runnableTask.currentStep]
+        val current = store.get(runnableTask.id) ?: return "IDLE"
+        if (!current.approvedForBackground ||
+            current.state != runnableTask.state ||
+            current.currentStep != runnableTask.currentStep ||
+            current.actionsExecuted != runnableTask.actionsExecuted
+        ) {
+            return "PAUSED"
+        }
+
+        val step = current.steps[current.currentStep]
         if (!BackgroundActionPolicy.mayRunUnattended(step.action.type)) {
             store.upsert(runnableTask.copy(
                 state = TaskState.WAITING_FOR_USER,
