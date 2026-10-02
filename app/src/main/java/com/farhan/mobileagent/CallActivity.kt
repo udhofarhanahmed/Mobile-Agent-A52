@@ -66,7 +66,6 @@ class CallActivity : ComponentActivity() {
                     }
                     if (targetName.isNotBlank() && phoneNumber == null && !hasContactsPermission()) {
                         Button(
-                            Modifier.fillMaxWidth(),
                             onClick = {
                                 contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
                             }
@@ -100,11 +99,10 @@ class CallActivity : ComponentActivity() {
                     }
                     if (phoneNumber != null) {
                         Button(
-                            Modifier.fillMaxWidth(),
                             onClick = { openDialer(phoneNumber.orEmpty()) }
                         ) { Text("Open Phone with number ready") }
                     }
-                    OutlinedButton(Modifier.fillMaxWidth(), onClick = { finish() }) {
+                    OutlinedButton(onClick = { finish() }) {
                         Text("Close")
                     }
                 }
