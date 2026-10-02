@@ -63,6 +63,25 @@ class TaskStore(context: Context) {
     }
 
     @Synchronized
+    fun revokeBackground(id: String): AgentTask? {
+        val task = get(id) ?: return null
+        if (!task.approvedForBackground) return task
+        val nextState = when (task.state) {
+            TaskState.RUNNING,
+            TaskState.QUEUED,
+            TaskState.PAUSED -> TaskState.PAUSED
+            else -> task.state
+        }
+        val revoked = task.copy(
+            approvedForBackground = false,
+            state = nextState,
+            lastError = "Background authorization revoked by user"
+        )
+        write(revoked)
+        return revoked
+    }
+
+    @Synchronized
     fun authorizeBackground(id: String): AgentTask? {
         val task = get(id) ?: return null
         if (task.state != TaskState.QUEUED &&
