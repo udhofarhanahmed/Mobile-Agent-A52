@@ -103,8 +103,7 @@ class TaskRunner(
             return "FAILED"
         }
 
-        val autonomousRequest = step.action.copy(requiresConfirmation = false, confirmed = true)
-        val result = service.executeApproved(autonomousRequest)
+        val result = service.executeBackground(step.action)
         if (!result.success) {
             return handleFailure(runnableTask, nextActionCount, result.message)
         }
