@@ -114,7 +114,9 @@ object LocalFileAnalyzer {
             val nameForColumn = headers[column]
             val values = dataRows.map { row -> row.getOrNull(column)?.trim().orEmpty() }
             val present = values.filter { it.isNotBlank() }
-            val numbers = present.mapNotNull { it.toDoubleOrNull() }
+            val numbers = present.mapNotNull { value ->
+                value.toDoubleOrNull()?.takeIf { it.isFinite() }
+            }
             if (numbers.isNotEmpty() && numbers.size * 2 >= present.size) {
                 val sum = numbers.sum()
                 numeric += NumericColumnSummary(
