@@ -114,4 +114,4 @@ Use JDK 17, Android SDK 35, and Gradle 8.10. The repository's GitHub Actions wor
 
 The current project does not include the Gradle Wrapper. On a machine with Gradle 8.10 installed, run `gradle test`, `gradle lint`, and `gradle assembleDebug` from the repository root.
 
-The repository is intentionally private while the security model and device behavior are still being hardened.
+The project is in active development. Review security settings and validate device behavior on the target A52 before relying on background automation.
