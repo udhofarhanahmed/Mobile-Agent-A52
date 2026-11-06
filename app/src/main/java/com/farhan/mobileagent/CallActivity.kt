@@ -9,6 +9,7 @@ import android.provider.ContactsContract
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -47,9 +48,9 @@ class CallActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme {
+            MobileAgentTheme(AgentSettings.themeMode(this@CallActivity)) {
                 Column(
-                    Modifier.fillMaxSize().padding(20.dp),
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text("Protected call", style = MaterialTheme.typography.headlineMedium)

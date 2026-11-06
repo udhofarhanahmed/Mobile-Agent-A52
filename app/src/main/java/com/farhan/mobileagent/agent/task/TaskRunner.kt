@@ -114,12 +114,20 @@ class TaskRunner(
             return "FAILED"
         }
 
+        val verificationStartedAt = if (step.verifyPackage != null || step.verifyText != null) {
+            // A screen snapshot from before this action must never count as proof of success.
+            ScreenStateStore.clear()
+            System.currentTimeMillis()
+        } else {
+            0L
+        }
+
         val result = service.executeBackground(step.action)
         if (!result.success) {
             return handleFailure(runnableTask, nextActionCount, result.message)
         }
 
-        if (!verifyStep(step)) {
+        if (!verifyStep(step, verificationStartedAt)) {
             return handleVerificationFailure(
                 runnableTask,
                 nextActionCount,

@@ -7,7 +7,10 @@ import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -41,9 +44,10 @@ class MusicActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            MaterialTheme {
+            MobileAgentTheme(AgentSettings.themeMode(this@MusicActivity)) {
                 Column(
-                    Modifier.fillMaxSize().padding(20.dp),
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+                        .verticalScroll(rememberScrollState()).padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text("Music", style = MaterialTheme.typography.headlineMedium)

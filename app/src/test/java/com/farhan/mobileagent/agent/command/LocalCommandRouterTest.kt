@@ -34,7 +34,7 @@ class LocalCommandRouterTest {
         val result = router.route("remind me to call Ali in 10 minutes")
         assertTrue(result is CommandResult.AddAttention)
         val item = result as CommandResult.AddAttention
-        assertEquals("call ali", item.title)
+        assertEquals("call Ali", item.title)
         assertNotNull(item.dueAt)
         assertTrue(item.dueAt!! >= before + 9L * 60L * 1000L)
     }

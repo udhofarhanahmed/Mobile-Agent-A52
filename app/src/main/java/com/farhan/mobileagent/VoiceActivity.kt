@@ -13,6 +13,9 @@ import androidx.activity.compose.setContent
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -43,9 +46,10 @@ class VoiceActivity : ComponentActivity() {
             }
             var listening by remember { mutableStateOf(false) }
 
-            MaterialTheme {
+            MobileAgentTheme(AgentSettings.themeMode(this@VoiceActivity)) {
                 Column(
-                    Modifier.fillMaxSize().padding(20.dp),
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+                        .verticalScroll(rememberScrollState()).padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text("Voice", style = MaterialTheme.typography.headlineMedium)
@@ -98,7 +102,7 @@ class VoiceActivity : ComponentActivity() {
                             }
                         }
                     ) {
-                        Text(if (listening) "Listening…" else "🎙  Talk to Agent")
+                        Text(if (listening) "Listening…" else "Start listening")
                     }
 
                     OutlinedButton(

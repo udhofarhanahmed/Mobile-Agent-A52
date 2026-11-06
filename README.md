@@ -47,7 +47,9 @@ Any future local AI model is treated as an untrusted planner. Its proposals are 
 
 ## Offline AI
 
-The OfflinePlanner interface is ready for an on-device model that is packaged locally or otherwise available without network access. The model will produce answers or proposed actions only.
+The current planner is a deterministic offline command router; this release does not include a general-purpose language model. It supports common local commands and simple arithmetic, and it explains its limits when a request is not supported. It cannot answer arbitrary questions or safely control every installed app.
+
+The `OfflinePlanner` interface can host an on-device model that is packaged locally or otherwise available without network access. Any future model will produce answers or proposed actions only.
 
 The project intentionally separates intelligence from authority:
 
@@ -74,6 +76,10 @@ Example local commands:
 
 - `remember buy milk`
 - `remind me to call Ali in 10 minutes`
+- `what is 25% of 80`
+- `what is 12 plus 5`
+- `what time is it`
+- `what is the date`
 - `battery`
 - `open settings`
 - `open chrome`
@@ -82,6 +88,8 @@ Example local commands:
 - `go home`
 
 Commands that affect the phone are prepared for approval rather than executed silently.
+
+Relative alarms and reminders accept times from one minute to one year in the future. Command matching is case-insensitive while note and reminder text keeps the capitalization you entered.
 
 ## Roadmap
 
@@ -102,6 +110,8 @@ Adversarial tests, data-retention controls, crash recovery, permission inventory
 
 ## Build
 
-GitHub Actions runs unit tests and produces a debug APK artifact on pushes to main.
+Use JDK 17, Android SDK 35, and Gradle 8.10. The repository's GitHub Actions workflow runs unit tests, Android lint, and a debug APK build for pull requests to `main`, pushes to `main`, and manual workflow runs.
+
+The current project does not include the Gradle Wrapper. On a machine with Gradle 8.10 installed, run `gradle test`, `gradle lint`, and `gradle assembleDebug` from the repository root.
 
 The repository is intentionally private while the security model and device behavior are still being hardened.

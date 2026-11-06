@@ -9,6 +9,10 @@ import com.farhan.mobileagent.agent.task.AgentTask
 import com.farhan.mobileagent.agent.task.TaskStep
 import com.farhan.mobileagent.agent.tools.LocalCalculator
 import java.util.Calendar
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 sealed interface CommandResult {
     data class Answer(val text: String) : CommandResult
@@ -31,14 +35,17 @@ class LocalCommandRouter {
     fun route(input: String, device: DeviceState? = null): CommandResult {
         val raw = input.trim()
         val q = raw.lowercase()
-        val reminder = Regex("^remind me to (.+) in (\\d+) (minute|minutes|hour|hours)$").find(q)
-        val alarmRelative = Regex("^(?:set\\s+)?(?:an\\s+)?alarm\\s+in\\s+(\\d+)\\s+(minute|minutes|hour|hours)$").find(q)
-        val alarmAbsolute = Regex("^(?:set\\s+)?(?:an\\s+)?alarm(?:\\s+for|\\s+at)?\\s+(\\d{1,2}:\\d{2}(?:\\s*(?:am|pm))?)$").find(q)
-        val wakeAbsolute = Regex("^wake me (?:at|for)\\s+(\\d{1,2}:\\d{2}(?:\\s*(?:am|pm))?)$").find(q)
-        val remindAbsolute = Regex("^remind me at\\s+(\\d{1,2}:\\d{2}(?:\\s*(?:am|pm))?)\\s+to\\s+(.+)$").find(q)
-        val percentOf = Regex("^(?:calculate\\s+|calc\\s+|what is\\s+)?([0-9.]+)%\\s+of\\s+([0-9.]+)$").find(q)
-        val background = q.removePrefix("background ").trim()
-        val appPackage = appPackageFor(q.removePrefix("open app ").removePrefix("open ").trim())
+        val ignoreCase = RegexOption.IGNORE_CASE
+        val reminder = Regex("^remind me to (.+) in (\\d+) (minute|minutes|hour|hours)$", ignoreCase).find(raw)
+        val alarmRelative = Regex("^(?:set\\s+)?(?:an\\s+)?alarm\\s+in\\s+(\\d+)\\s+(minute|minutes|hour|hours)$", ignoreCase).find(raw)
+        val alarmAbsolute = Regex("^(?:set\\s+)?(?:an\\s+)?alarm(?:\\s+for|\\s+at)?\\s+(\\d{1,2}:\\d{2}(?:\\s*(?:am|pm))?)$", ignoreCase).find(raw)
+        val wakeAbsolute = Regex("^wake me (?:at|for)\\s+(\\d{1,2}:\\d{2}(?:\\s*(?:am|pm))?)$", ignoreCase).find(raw)
+        val remindAbsolute = Regex("^remind me at\\s+(\\d{1,2}:\\d{2}(?:\\s*(?:am|pm))?)\\s+to\\s+(.+)$", ignoreCase).find(raw)
+        val percentOf = Regex("^(?:calculate\\s+|calc\\s+|what(?:\\s+is|'s)\\s+)?([0-9.]+)%\\s+of\\s+([0-9.]+)\\??$", ignoreCase).find(raw)
+        val mathExpression = normalizedMathExpression(raw)
+        val background = raw.substringAfter(' ').trim()
+        val appName = q.removePrefix("open app ").removePrefix("open ").removePrefix("launch ").trim()
+        val appPackage = appPackageFor(appName)
 
         if (q.startsWith("background ")) {
             val commands = background
@@ -72,18 +79,20 @@ class LocalCommandRouter {
 
         return when {
             reminder != null -> {
+                val title = reminder.groupValues[1].trim()
+                if (title.isBlank()) return CommandResult.Unknown("Tell me what you want to be reminded about.")
                 val amount = reminder.groupValues[2].toLongOrNull()
                     ?: return CommandResult.Unknown("I could not read that reminder time.")
-                val unit = reminder.groupValues[3]
-                val delay = if (unit.startsWith("hour")) amount * 3600000L else amount * 60000L
-                attention(reminder.groupValues[1].trim(), System.currentTimeMillis() + delay, AttentionKind.REMINDER)
+                val dueAt = relativeDueAt(amount, reminder.groupValues[3])
+                    ?: return CommandResult.Unknown("Use a reminder time from 1 minute up to 1 year in the future.")
+                attention(title, dueAt, AttentionKind.REMINDER)
             }
             alarmRelative != null -> {
                 val amount = alarmRelative.groupValues[1].toLongOrNull()
                     ?: return CommandResult.Unknown("I could not read that alarm time.")
-                val unit = alarmRelative.groupValues[2]
-                val delay = if (unit.startsWith("hour")) amount * 3600000L else amount * 60000L
-                attention("Alarm", System.currentTimeMillis() + delay, AttentionKind.REMINDER, 100)
+                val dueAt = relativeDueAt(amount, alarmRelative.groupValues[2])
+                    ?: return CommandResult.Unknown("Use an alarm time from 1 minute up to 1 year in the future.")
+                attention("Alarm", dueAt, AttentionKind.REMINDER, 100)
             }
             alarmAbsolute != null || wakeAbsolute != null -> {
                 val clock = (alarmAbsolute ?: wakeAbsolute)!!.groupValues[1]
@@ -91,8 +100,10 @@ class LocalCommandRouter {
                 attention("Alarm", at, AttentionKind.REMINDER, 100)
             }
             remindAbsolute != null -> {
+                val title = remindAbsolute.groupValues[2].trim()
+                if (title.isBlank()) return CommandResult.Unknown("Tell me what you want to be reminded about.")
                 val at = nextClockTime(remindAbsolute.groupValues[1]) ?: return CommandResult.Unknown("Use a time like 7:30 or 7:30 pm.")
-                attention(remindAbsolute.groupValues[2].trim(), at, AttentionKind.REMINDER)
+                attention(title, at, AttentionKind.REMINDER)
             }
             percentOf != null -> {
                 val result = runCatching {
@@ -103,7 +114,13 @@ class LocalCommandRouter {
                 )
             }
             q.startsWith("calculate ") || q.startsWith("calc ") -> {
-                val expression = raw.substringAfter(" ").trim()
+                val expression = raw.substringAfter(" ").trim().removeSuffix("?").trim()
+                val result = runCatching { LocalCalculator.calculate(expression) }
+                    .getOrElse { return CommandResult.Unknown("I could not safely calculate that expression.") }
+                CommandResult.Answer(expression + " = " + result.formatted)
+            }
+            mathExpression != null -> {
+                val expression = mathExpression
                 val result = runCatching { LocalCalculator.calculate(expression) }
                     .getOrElse { return CommandResult.Unknown("I could not safely calculate that expression.") }
                 CommandResult.Answer(expression + " = " + result.formatted)
@@ -116,7 +133,7 @@ class LocalCommandRouter {
                         reason = "User requested a specific app package"
                     )
                 )
-            q.startsWith("open ") && appPackage != null ->
+            (q.startsWith("open ") || q.startsWith("launch ")) && appPackage != null ->
                 CommandResult.Action(
                     ActionRequest(
                         type = ActionType.OPEN_APP,
@@ -162,6 +179,12 @@ class LocalCommandRouter {
                 CommandResult.AddNote(raw.substringAfter("make a note ").trim())
             q.startsWith("remember ") ->
                 CommandResult.AddAttention(raw.substringAfter("remember ").trim(), 60)
+            q.removeSuffix("?") in setOf("time", "time now", "what time is it", "what is the time", "what's the time") ->
+                CommandResult.Answer("It is " + LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())) + ".")
+            q.removeSuffix("?") in setOf("date", "today's date", "what is the date", "what's the date", "what day is it") ->
+                CommandResult.Answer(LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault())))
+            q in setOf("hi", "hello", "hey", "hey there", "good morning", "good afternoon", "good evening") ->
+                CommandResult.Answer("Hi! I’m here. I can help with local calculations, reminders, notes, battery status, and supported phone actions.")
             q.contains("battery") && device != null ->
                 CommandResult.Answer(
                     "Battery " + device.batteryPercent + "%. " +
@@ -171,15 +194,40 @@ class LocalCommandRouter {
                 CommandResult.Answer(
                     "I am local-first. I plan locally, schedule local attention, prepare protected device actions, and run only explicitly authorized low-risk background work."
                 )
-            else -> CommandResult.Unknown("I do not have a safe built-in command for that yet.")
+            else -> CommandResult.Unknown(
+                "I can’t do that with my offline tools yet. I can help with calculations, reminders, notes, calls, supported apps, music, files, battery, and phone navigation. Try “what is 25% of 80” or open Tools for examples. Phone actions always ask first."
+            )
         }
+    }
+
+    private fun relativeDueAt(amount: Long, unit: String): Long? {
+        if (amount <= 0L) return null
+        val multiplier = if (unit.startsWith("hour", ignoreCase = true)) 3_600_000L else 60_000L
+        val maximumDelay = 365L * 24L * 60L * 60L * 1000L
+        if (amount > maximumDelay / multiplier) return null
+        val delay = amount * multiplier
+        return (System.currentTimeMillis() + delay).takeIf { delay <= maximumDelay }
+    }
+
+    private fun normalizedMathExpression(input: String): String? {
+        var expression = input.trim().removeSuffix("?").trim()
+        expression = expression.replace(Regex("^(?:what is|what's|how much is|work out)\\s+", RegexOption.IGNORE_CASE), "")
+        expression = expression
+            .replace(Regex("\\bplus\\b", RegexOption.IGNORE_CASE), "+")
+            .replace(Regex("\\bminus\\b", RegexOption.IGNORE_CASE), "-")
+            .replace(Regex("\\b(?:times|multiplied by)\\b", RegexOption.IGNORE_CASE), "*")
+            .replace(Regex("\\b(?:divided by|over)\\b", RegexOption.IGNORE_CASE), "/")
+            .trim()
+        if (!Regex("[+*/-]").containsMatchIn(expression)) return null
+        if (!Regex("^[0-9.()+*/\\-\\s]+$").matches(expression)) return null
+        return expression
     }
 
     private fun nextClockTime(value: String): Long? {
         val match = Regex("^(\\d{1,2}):(\\d{2})\\s*(am|pm)?$").find(value.trim()) ?: return null
         var hour = match.groupValues[1].toIntOrNull() ?: return null
         val minute = match.groupValues[2].toIntOrNull() ?: return null
-        val suffix = match.groupValues[3].ifBlank { null }
+        val suffix = match.groupValues[3].lowercase().ifBlank { null }
         if (minute !in 0..59) return null
         if (suffix == null) {
             if (hour !in 0..23) return null
